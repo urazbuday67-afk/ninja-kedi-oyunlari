@@ -1,0 +1,1945 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Meteordan Kaçan Kedi</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@700;800&display=swap">
+<style>
+  body {
+    margin: 0; height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: radial-gradient(circle at 50% 40%, #2a1638 0%, #0a0512 70%);
+    font-family: "Nunito", Arial, Helvetica, sans-serif;
+    color: #fff; user-select: none;
+  }
+  canvas {
+    border-radius: 18px;
+    box-shadow: 0 0 0 1px #ff8a3d44, 0 24px 70px #0008, 0 0 90px #ff6a2033;
+    display: block;
+  }
+  p { opacity: .45; font-size: 13px; margin-top: 14px; letter-spacing: .02em; }
+  #sahne { display: flex; align-items: center; justify-content: center; }
+  #sahne:fullscreen, #sahne:-webkit-full-screen { width: 100vw; height: 100vh; background: #0a0512; }
+  #sahne:fullscreen canvas, #sahne:-webkit-full-screen canvas { border-radius: 0; box-shadow: none; }
+</style>
+</head>
+<body>
+
+<div id="sahne">
+  <canvas id="ekran" width="800" height="600"></canvas>
+</div>
+<p>&larr; &rarr; &uarr; &darr; her yöne kaç &nbsp;·&nbsp; <b>X</b> çakra topu &nbsp;·&nbsp; <b>C</b> kuyruk savur &nbsp;·&nbsp; BOŞLUK duraklat &nbsp;·&nbsp; F tam ekran &nbsp;·&nbsp; M ses</p>
+
+<script>
+// ===========================================================
+//   AYARLAR — bu sayıları değiştir, kaydet, F5'e bas!
+// ===========================================================
+
+var KEDI_HIZI      = 5.2;   // Kedi ne kadar hızlı kaçsın
+var KEDI_BOYU      = 84;    // Kedinin büyüklüğü
+var CARPISMA_ORANI = 0.42;  // Çarpışma alanı (küçük sayı = daha affedici)
+
+var METEOR_SIKLIGI = 52;    // Kaç karede bir meteor gelsin (küçük = çok meteor)
+var METEOR_HIZI    = 2.6;   // Meteorlar ne kadar hızlı gelsin
+var METEOR_BOYU    = 20;    // Meteorların büyüklüğü
+var NISANCI_SANSI  = 0.35;  // Meteorların ne kadarı doğrudan kediye nişan alsın
+
+var CAN_BASLANGIC  = 3;     // Kaç kuyrukla başlasın
+var EN_COK_KUYRUK  = 9;     // En fazla kaç kuyruk
+var EVRIM_KUYRUK   = 9;     // Kaç kuyrukta DOKUZ KUYRUK MODU açılsın
+var EVRIM_SURESI   = 600;   // Dokuz Kuyruk Modu kaç kare sürsün (600 = 10 saniye)
+var EVRIM_SONRASI  = 4;     // Mod bitince kaç kuyrukla devam etsin
+
+var CAKRA_SIKLIGI  = 260;   // Kaç karede bir çakra küresi gelsin (+1 kuyruk)
+var DOKUNULMAZLIK  = 100;   // Vurulunca kaç kare dokunulmaz kalsın
+
+var BOLUM_SURESI   = 900;   // Kaç karede bir bölüm atlansın (900 = 15 saniye)
+var BOLUM_HIZLANMA = 0.45;  // Her bölümde meteorlar ne kadar hızlansın
+
+// --- BOSS'LAR (Pain, Madara, Nagato) ---
+var BOSS_BOLUMLERI = [3, 5, 7];   // Hangi bölümlerde boss çıksın
+var BOSS_CANLARI   = [3, 6, 12];  // Boss'ların canı: 1.si 3, 2.si 6, 3.sü 12
+var BOSS_BOYU      = 170;         // Boss ne kadar büyük
+var BOSS_HIZI      = 1.7;         // Boss ne kadar hızlı kovalasın
+var BOSS_SALDIRI_BEKLE = 120;     // Kaç karede bir kuyruk savursun
+var BOSS_MENZIL_ORANI  = 1.45;    // Kuyruk savurma menzili (boyun kaç katı)
+var BOSS_METEOR_DEVAM  = false;   // Boss varken meteorlar da gelsin mi? (true yap, çok zorlaşır)
+
+// --- KEDİNİN SALDIRILARI ---
+var TOP_HIZI       = 9.5;   // X ile atılan çakra topunun hızı
+var TOP_BEKLE      = 16;    // Kaç karede bir top atılabilsin
+var TOP_HASAR      = 1;     // Çakra topu kaç can götürsün
+var KUYRUK_MENZIL  = 120;   // C ile kuyruk savurma menzili (yakın dövüş)
+var KUYRUK_BEKLE   = 48;    // Kuyruk savurma kaç karede bir
+var KUYRUK_HASAR   = 2;     // Kuyruk savurma kaç can götürsün
+
+var EZILME_GUCU    = 0.30;  // Squash & stretch gücü
+var DONMA_KARE     = 6;     // Darbede ekran kaç kare donsun
+var SARSINTI_GUCU  = 1.0;   // Ekran sarsıntısı çarpanı
+
+var YAPIMCI_1      = "Uraz Buday";
+var YAPIMCI_2      = "Çağlar Buday";
+var TARIH          = "3 Eylül 2026";
+
+// ===========================================================
+
+
+var ekran = document.getElementById("ekran");
+var ctx = ekran.getContext("2d");
+var GENISLIK = ekran.width;
+var YUKSEKLIK = ekran.height;
+var BASLIK_FONT = '"Fredoka", "Trebuchet MS", Arial, sans-serif';
+var YAZI_FONT   = '"Nunito", Arial, sans-serif';
+var UFUK = 545;
+
+function yumusakCikis(t) { return 1 - Math.pow(1 - t, 3); }
+function zipla(t) { var c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); }
+
+
+// ===========================================================
+//   TAM EKRAN
+// ===========================================================
+var sahne = document.getElementById("sahne");
+var tamEkranButonu = { x: GENISLIK - 58, y: 20, boy: 34 };
+
+function tamEkranMi() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+function tamEkranDegistir() {
+  try {
+    if (!tamEkranMi()) {
+      var ac = sahne.requestFullscreen || sahne.webkitRequestFullscreen;
+      if (ac) ac.call(sahne);
+    } else {
+      var kapat = document.exitFullscreen || document.webkitExitFullscreen;
+      if (kapat) kapat.call(document);
+    }
+  } catch (e) {}
+}
+function olcuAyarla() {
+  if (tamEkranMi()) {
+    var olcek = Math.min(window.innerWidth / GENISLIK, window.innerHeight / YUKSEKLIK);
+    ekran.style.width  = Math.round(GENISLIK * olcek) + "px";
+    ekran.style.height = Math.round(YUKSEKLIK * olcek) + "px";
+  } else { ekran.style.width = ""; ekran.style.height = ""; }
+}
+document.addEventListener("fullscreenchange", olcuAyarla);
+document.addEventListener("webkitfullscreenchange", olcuAyarla);
+window.addEventListener("resize", olcuAyarla);
+
+function fareKonumu(e) {
+  var kutu = ekran.getBoundingClientRect();
+  return { x: (e.clientX - kutu.left) * (GENISLIK / kutu.width),
+           y: (e.clientY - kutu.top)  * (YUKSEKLIK / kutu.height) };
+}
+
+
+// ===========================================================
+//   SES (dosya yok, hepsi kodla üretiliyor)
+// ===========================================================
+var sesMotoru = null;
+var sesKapali = false;
+
+function sesiUyandir() {
+  if (!sesMotoru) {
+    try { sesMotoru = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { sesMotoru = null; }
+  }
+  if (sesMotoru && sesMotoru.state === "suspended") sesMotoru.resume();
+}
+function ton(frekans, sure, tip, yukseklik, bitisFrekansi, gecikme) {
+  if (!sesMotoru || sesKapali) return;
+  var t = sesMotoru.currentTime + (gecikme || 0);
+  var osc = sesMotoru.createOscillator(), kaz = sesMotoru.createGain();
+  osc.type = tip || "sine";
+  osc.frequency.setValueAtTime(frekans, t);
+  if (bitisFrekansi) osc.frequency.exponentialRampToValueAtTime(Math.max(25, bitisFrekansi), t + sure);
+  kaz.gain.setValueAtTime(0.0001, t);
+  kaz.gain.linearRampToValueAtTime(yukseklik || 0.2, t + 0.012);
+  kaz.gain.exponentialRampToValueAtTime(0.0001, t + sure);
+  osc.connect(kaz); kaz.connect(sesMotoru.destination);
+  osc.start(t); osc.stop(t + sure + 0.03);
+}
+function hisirti(sure, yukseklik) {
+  if (!sesMotoru || sesKapali) return;
+  var uzunluk = Math.floor(sesMotoru.sampleRate * sure);
+  var tampon = sesMotoru.createBuffer(1, uzunluk, sesMotoru.sampleRate);
+  var veri = tampon.getChannelData(0);
+  for (var i = 0; i < uzunluk; i++) veri[i] = (Math.random() * 2 - 1) * (1 - i / uzunluk);
+  var kaynak = sesMotoru.createBufferSource(); kaynak.buffer = tampon;
+  var kaz = sesMotoru.createGain(); kaz.gain.value = yukseklik || 0.12;
+  kaynak.connect(kaz); kaz.connect(sesMotoru.destination);
+  kaynak.start();
+}
+
+function sesCarpma()  { ton(140, 0.35, "sawtooth", 0.22, 45); hisirti(0.28, 0.16); }
+function sesCakra()   { var n = [523, 784, 1047]; for (var i = 0; i < n.length; i++) ton(n[i], 0.16, "triangle", 0.14, null, i * 0.06); }
+function sesOlum()    { var n = [392, 330, 262, 175]; for (var i = 0; i < n.length; i++) ton(n[i], 0.36, "triangle", 0.18, null, i * 0.18); }
+function sesEvrim()   { var n = [262, 330, 392, 523, 659, 784]; for (var i = 0; i < n.length; i++) ton(n[i], 0.34, "sawtooth", 0.15, null, i * 0.08); }
+function sesEvrimBit(){ var n = [523, 392, 294]; for (var i = 0; i < n.length; i++) ton(n[i], 0.24, "triangle", 0.13, null, i * 0.10); }
+function sesPatlama() { ton(90, 0.22, "square", 0.18, 40); hisirti(0.18, 0.14); }
+function sesBolum()   { ton(523, 0.16, "triangle", 0.16); ton(784, 0.24, "triangle", 0.16, null, 0.13); }
+function sesDurakla() { ton(500, 0.09, "sine", 0.12, 320); }
+function sesDevam()   { ton(400, 0.09, "sine", 0.12, 700); }
+function sesBossGeldi()  { var n = [110, 98, 87, 73]; for (var i = 0; i < n.length; i++) ton(n[i], 0.55, "sawtooth", 0.20, null, i * 0.17); hisirti(0.7, 0.13); }
+function sesBossVuruldu(){ ton(320, 0.10, "square", 0.15, 180); }
+function sesBossOldu()   { var n = [196, 165, 131, 98, 73]; for (var i = 0; i < n.length; i++) ton(n[i], 0.44, "sawtooth", 0.18, null, i * 0.15); hisirti(1.0, 0.17); }
+function sesTopAt()      { ton(760, 0.10, "sine", 0.10, 1250); }
+function sesSavur()      { hisirti(0.24, 0.13); ton(180, 0.20, "sawtooth", 0.12, 90); }
+function sesKuyrukSavur(){ hisirti(0.16, 0.10); ton(430, 0.12, "triangle", 0.11, 720); }
+
+
+// ===========================================================
+//   KAYIT — 1. oyundan AYRI anahtar, rekorlar karışmasın
+// ===========================================================
+var KAYIT_ADI = "kacmaOyunuKaydi";
+var kayitCalisiyor = true;
+var kayitYazi = 0;
+
+function kaydiYukle() {
+  try { var ham = localStorage.getItem(KAYIT_ADI); return ham ? JSON.parse(ham) : {}; }
+  catch (e) { kayitCalisiyor = false; return {}; }
+}
+function kaydet() {
+  try {
+    localStorage.setItem(KAYIT_ADI, JSON.stringify({
+      rekor: rekor, enYuksekBolum: enYuksekBolum, enCokKuyruk: enCokKuyruk,
+      evrimSayisi: evrimSayisi, sesKapali: sesKapali, yenilenBoss: yenilenBossSayisi
+    }));
+    kayitYazi = 80;
+  } catch (e) { kayitCalisiyor = false; }
+}
+var kayit = kaydiYukle();
+var rekor         = kayit.rekor || 0;              // en uzun hayatta kalma (saniye)
+var enYuksekBolum = kayit.enYuksekBolum || 1;
+var enCokKuyruk   = kayit.enCokKuyruk || CAN_BASLANGIC;
+var evrimSayisi   = kayit.evrimSayisi || 0;
+var yenilenBossSayisi = kayit.yenilenBoss || 0;   // toplam kaç boss yenildi
+sesKapali         = kayit.sesKapali || false;
+
+var KEDI_RENK = { ana: "#ffa94d", koyu: "#ef8c33", cizgi: "#d9711f" };
+
+
+// ===========================================================
+//   OYUNUN HAFIZASI
+// ===========================================================
+var durum = "menu";        // menu | oyun | duraklat | bitti
+var kedi, meteorlar, cakralar, parcaciklar, yazilar, halkalar;
+var can, sayac, sure, bolum, dokunulmaz, evrimSayac, evrimGecti;
+var sarsinti, donma, ekranParlama, bolumYazi, evrimYazi;
+var boss, topler, sonrakiBoss, bolumSayac;
+var topBekleme, kuyrukSaldiri, kuyrukBekleme;
+var bossYazi, bossYaziMetin;
+
+function oyunuBaslat() {
+  kedi = {
+    x: GENISLIK / 2, y: 400,
+    vx: 0, vy: 0,
+    agiz: 0, agizHedef: 0,
+    basKalk: 0, basAci: 0, bakisX: 0, bakisY: 0,
+    ezilme: 0, ezilmeHiz: 0, egim: 0,
+    gozKirp: 0, kirpSayaci: 90,
+    iz: []
+  };
+  meteorlar = []; cakralar = []; parcaciklar = []; yazilar = []; halkalar = [];
+  can = CAN_BASLANGIC;
+  sayac = 0; sure = 0; bolum = 1;
+  dokunulmaz = 0; evrimSayac = 0; evrimGecti = false;
+  sarsinti = 0; donma = 0; ekranParlama = 0;
+  bolumYazi = 0; evrimYazi = 0;
+  boss = null; topler = []; sonrakiBoss = 0; bolumSayac = 0;
+  topBekleme = 0; kuyrukSaldiri = 0; kuyrukBekleme = 0;
+  bossYazi = 0; bossYaziMetin = "";
+  durum = "oyun";
+}
+
+function kediyiEz(guc) { kedi.ezilme = guc; kedi.ezilmeHiz = 0; }
+function meteorHizi() { return METEOR_HIZI + (bolum - 1) * BOLUM_HIZLANMA; }
+function meteorSikligi() { return Math.max(14, METEOR_SIKLIGI - (bolum - 1) * 4); }
+function dokuzKuyrukModu() { return evrimSayac > 0; }
+
+
+// ===========================================================
+//   NARUTO ARKA PLANI
+// ===========================================================
+var yaprakKatmanlari = [];
+var YAPRAK_AYARI = [
+  { adet: 16, hiz: 0.5, boy: [3, 5],  alfa: 0.35 },
+  { adet: 12, hiz: 1.1, boy: [5, 8],  alfa: 0.6  },
+  { adet: 8,  hiz: 2.0, boy: [8, 13], alfa: 0.9  }
+];
+for (var yk2 = 0; yk2 < YAPRAK_AYARI.length; yk2++) {
+  var ya = YAPRAK_AYARI[yk2], yliste = [];
+  for (var yi = 0; yi < ya.adet; yi++) {
+    yliste.push({ x: Math.random() * GENISLIK, y: Math.random() * UFUK,
+                  boy: ya.boy[0] + Math.random() * (ya.boy[1] - ya.boy[0]),
+                  aci: Math.random() * 6.28, donus: (Math.random() - 0.5) * 0.08,
+                  salinim: Math.random() * 6.28 });
+  }
+  yaprakKatmanlari.push({ ayar: ya, yapraklar: yliste });
+}
+var bulutlar = [];
+for (var bi = 0; bi < 9; bi++) {
+  bulutlar.push({ x: Math.random() * GENISLIK, y: 40 + Math.random() * 230,
+                  g: 90 + Math.random() * 200, yuk: 12 + Math.random() * 22,
+                  hiz: 0.35 + Math.random() * 1.5, alfa: 0.12 + Math.random() * 0.22 });
+}
+var catilar = [];
+for (var ci = 0; ci < 16; ci++) {
+  catilar.push({ x: ci * 56 + Math.random() * 18, g: 34 + Math.random() * 34,
+                 yuk: 26 + Math.random() * 46, isik: Math.random() < 0.55 });
+}
+var simsek = 0, simsekBekle = 200 + Math.floor(Math.random() * 400);
+
+function yuvarlakKutu(x, y, g, y2, r) { ctx.beginPath(); ctx.roundRect(x, y, g, y2, r); }
+
+function camPanel(x, y, g, yuk, r, kenarRenk) {
+  ctx.save();
+  ctx.fillStyle = "rgba(24, 12, 34, 0.58)";
+  yuvarlakKutu(x, y, g, yuk, r); ctx.fill();
+  ctx.strokeStyle = kenarRenk || "rgba(255, 170, 110, 0.28)";
+  ctx.lineWidth = 1.5;
+  yuvarlakKutu(x + 0.75, y + 0.75, g - 1.5, yuk - 1.5, r); ctx.stroke();
+  ctx.restore();
+}
+
+function yaprakCiz(x, y, boy, aci, alfa) {
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(aci); ctx.globalAlpha = alfa;
+  ctx.fillStyle = "#2e6b34";
+  ctx.beginPath();
+  ctx.moveTo(0, -boy);
+  ctx.quadraticCurveTo(boy * 0.72, -boy * 0.15, 0, boy);
+  ctx.quadraticCurveTo(-boy * 0.72, -boy * 0.15, 0, -boy);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "#7bbf5a"; ctx.lineWidth = Math.max(0.6, boy * 0.09);
+  ctx.beginPath(); ctx.moveTo(0, -boy * 0.8); ctx.lineTo(0, boy * 0.8); ctx.stroke();
+  ctx.globalAlpha = 1; ctx.restore();
+}
+
+function arkaPlaniCiz() {
+  var gok = ctx.createLinearGradient(0, -60, 0, UFUK);
+  gok.addColorStop(0.00, "#1b1743");
+  gok.addColorStop(0.34, "#54306a");
+  gok.addColorStop(0.62, "#b84a56");
+  gok.addColorStop(0.84, "#eb8b46");
+  gok.addColorStop(1.00, "#f8c05a");
+  ctx.fillStyle = gok;
+  ctx.fillRect(-60, -60, GENISLIK + 120, UFUK + 60);
+
+  var ayX = 640, ayY = 118;
+  var hale = ctx.createRadialGradient(ayX, ayY, 10, ayX, ayY, 130);
+  hale.addColorStop(0, "rgba(255,240,200,0.34)");
+  hale.addColorStop(1, "rgba(255,220,160,0)");
+  ctx.fillStyle = hale;
+  ctx.beginPath(); ctx.arc(ayX, ayY, 130, 0, 6.2832); ctx.fill();
+  var ayGrad = ctx.createRadialGradient(ayX - 18, ayY - 18, 6, ayX, ayY, 54);
+  ayGrad.addColorStop(0, "#fff8e2"); ayGrad.addColorStop(1, "#f2d79a");
+  ctx.fillStyle = ayGrad;
+  ctx.beginPath(); ctx.arc(ayX, ayY, 54, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = "rgba(190,155,105,0.30)";
+  ctx.beginPath(); ctx.arc(ayX - 16, ayY - 8, 11, 0, 6.2832); ctx.fill();
+  ctx.beginPath(); ctx.arc(ayX + 14, ayY + 16, 8, 0, 6.2832); ctx.fill();
+
+  // manga hız çizgileri
+  ctx.save();
+  ctx.globalAlpha = 0.10 + Math.sin(sayac * 0.05) * 0.04;
+  ctx.strokeStyle = "#ffe4b0";
+  for (var hc = 0; hc < 46; hc++) {
+    var ha = (hc / 46) * 6.2832 + sayac * 0.0016;
+    var icR = 210 + Math.sin(hc * 2.7 + sayac * 0.06) * 45;
+    ctx.lineWidth = (hc % 3 === 0) ? 3 : 1.2;
+    ctx.beginPath();
+    ctx.moveTo(GENISLIK / 2 + Math.cos(ha) * icR, 300 + Math.sin(ha) * icR * 0.72);
+    ctx.lineTo(GENISLIK / 2 + Math.cos(ha) * 620, 300 + Math.sin(ha) * 620 * 0.72);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  for (var b = 0; b < bulutlar.length; b++) {
+    var bl = bulutlar[b];
+    bl.x -= bl.hiz;
+    if (bl.x + bl.g < -40) { bl.x = GENISLIK + 40; bl.y = 40 + Math.random() * 230; }
+    ctx.globalAlpha = bl.alfa;
+    ctx.fillStyle = "#ffd9b0";
+    ctx.beginPath(); ctx.ellipse(bl.x, bl.y, bl.g / 2, bl.yuk / 2, 0, 0, 6.2832); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(bl.x + bl.g * 0.22, bl.y - bl.yuk * 0.28, bl.g / 3.4, bl.yuk / 2.6, 0, 0, 6.2832); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  simsekBekle--;
+  if (simsekBekle <= 0) { simsek = 10; simsekBekle = 260 + Math.floor(Math.random() * 460); }
+  if (simsek > 0) {
+    simsek--;
+    ctx.globalAlpha = (simsek / 10) * 0.16;
+    ctx.fillStyle = "#fff3d0";
+    ctx.fillRect(-60, -60, GENISLIK + 120, UFUK + 60);
+    ctx.globalAlpha = 1;
+  }
+
+  // Hokage kayası
+  ctx.fillStyle = "#3a2749";
+  ctx.beginPath();
+  ctx.moveTo(-60, UFUK); ctx.lineTo(-60, 372); ctx.lineTo(60, 330); ctx.lineTo(160, 356);
+  ctx.lineTo(250, 316); ctx.lineTo(340, 350); ctx.lineTo(430, 336); ctx.lineTo(520, 366);
+  ctx.lineTo(610, 344); ctx.lineTo(720, 372); ctx.lineTo(GENISLIK + 60, 350);
+  ctx.lineTo(GENISLIK + 60, UFUK); ctx.closePath(); ctx.fill();
+  for (var yz = 0; yz < 4; yz++) {
+    var yx = 96 + yz * 104;
+    ctx.fillStyle = "#432c52";
+    ctx.beginPath(); ctx.ellipse(yx, 402, 31, 39, 0, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = "#34213f";
+    ctx.beginPath(); ctx.ellipse(yx + 7, 404, 25, 37, 0, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = "#2a1a33";
+    ctx.beginPath(); ctx.ellipse(yx - 10, 396, 4.5, 3, 0, 0, 6.2832); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(yx + 10, 396, 4.5, 3, 0, 0, 6.2832); ctx.fill();
+    ctx.fillRect(yx - 11, 417, 22, 3.5);
+    ctx.fillRect(yx - 14, 384, 11, 3); ctx.fillRect(yx + 3, 384, 11, 3);
+  }
+
+  ctx.fillStyle = "#2a1b38";
+  for (var c = 0; c < catilar.length; c++) {
+    var ct = catilar[c], tepe = UFUK - ct.yuk;
+    ctx.beginPath();
+    ctx.moveTo(ct.x - 8, UFUK); ctx.lineTo(ct.x - 8, tepe + 9);
+    ctx.lineTo(ct.x + ct.g / 2, tepe - 7); ctx.lineTo(ct.x + ct.g + 8, tepe + 9);
+    ctx.lineTo(ct.x + ct.g + 8, UFUK); ctx.closePath(); ctx.fill();
+    if (ct.isik) {
+      ctx.fillStyle = "rgba(255,196,88," + (0.55 + Math.sin(sayac * 0.05 + c) * 0.22).toFixed(2) + ")";
+      ctx.fillRect(ct.x + ct.g / 2 - 4, tepe + 20, 8, 9);
+      ctx.fillStyle = "#2a1b38";
+    }
+  }
+
+  ctx.fillStyle = "#1b1026";
+  ctx.fillRect(-60, UFUK, GENISLIK + 120, YUKSEKLIK - UFUK + 120);
+  ctx.beginPath();
+  ctx.moveTo(-60, UFUK + 4);
+  for (var ag = 0; ag <= 30; ag++) {
+    var agx = -60 + ag * ((GENISLIK + 120) / 30);
+    var agy = UFUK - 12 - Math.abs(Math.sin(ag * 1.7)) * 22;
+    ctx.lineTo(agx, agy); ctx.lineTo(agx + ((GENISLIK + 120) / 60), UFUK + 2);
+  }
+  ctx.lineTo(GENISLIK + 60, UFUK + 30); ctx.lineTo(-60, UFUK + 30);
+  ctx.closePath(); ctx.fill();
+
+  for (var k = 0; k < yaprakKatmanlari.length; k++) {
+    var kat = yaprakKatmanlari[k];
+    for (var i = 0; i < kat.yapraklar.length; i++) {
+      var yp = kat.yapraklar[i];
+      yp.x -= kat.ayar.hiz * 1.5;
+      yp.y += Math.sin(sayac * 0.03 + yp.salinim) * 0.7 + kat.ayar.hiz * 0.18;
+      yp.aci += yp.donus;
+      if (yp.x < -25) { yp.x = GENISLIK + 25; yp.y = Math.random() * UFUK; }
+      if (yp.y > UFUK + 10) yp.y = -15;
+      yaprakCiz(yp.x, yp.y, yp.boy, yp.aci, kat.ayar.alfa);
+    }
+  }
+}
+
+function vinyetCiz() {
+  var v = ctx.createRadialGradient(GENISLIK / 2, YUKSEKLIK / 2, YUKSEKLIK * 0.35,
+                                   GENISLIK / 2, YUKSEKLIK / 2, YUKSEKLIK * 0.82);
+  v.addColorStop(0, "rgba(0,0,0,0)");
+  v.addColorStop(1, "rgba(0,0,0,0.55)");
+  ctx.fillStyle = v;
+  ctx.fillRect(-60, -60, GENISLIK + 120, YUKSEKLIK + 120);
+}
+
+function tamEkranDugmesiniCiz() {
+  var b = tamEkranButonu, icerde = tamEkranMi();
+  var nabiz = 0.55 + Math.sin(sayac * 0.06) * 0.15;
+  camPanel(b.x - 6, b.y - 6, b.boy + 12, b.boy + 12, 12, "rgba(255,215,94," + nabiz.toFixed(2) + ")");
+  ctx.save();
+  ctx.translate(b.x + b.boy / 2, b.y + b.boy / 2);
+  ctx.strokeStyle = "#ffd75e"; ctx.lineWidth = 2.6; ctx.lineCap = "round";
+  var d = b.boy * 0.34, u = b.boy * 0.20;
+  for (var sx = -1; sx <= 1; sx += 2) {
+    for (var sy = -1; sy <= 1; sy += 2) {
+      var kx = sx * d, ky = sy * d, yon = icerde ? -1 : 1;
+      ctx.beginPath();
+      ctx.moveTo(kx + sx * u * yon, ky); ctx.lineTo(kx, ky); ctx.lineTo(kx, ky + sy * u * yon);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+
+// ===========================================================
+//   METEOR ve ÇAKRA KÜRESİ
+// ===========================================================
+function meteorCiz(m) {
+  ctx.save();
+  ctx.translate(m.x, m.y);
+
+  // alev kuyruğu (geldiği yönün tersine uzanır)
+  var kuyrukAci = Math.atan2(m.vy, m.vx) + Math.PI;
+  ctx.save();
+  ctx.rotate(kuyrukAci);
+  for (var t = 0; t < 9; t++) {
+    var u = t / 9;
+    ctx.globalAlpha = (1 - u) * 0.55;
+    ctx.fillStyle = u < 0.4 ? "#fff0b0" : (u < 0.7 ? "#ff9b2e" : "#e04a1c");
+    ctx.beginPath();
+    ctx.arc(m.boy * (0.6 + u * 3.1), Math.sin(sayac * 0.3 + t) * m.boy * 0.12,
+            m.boy * (0.72 - u * 0.62), 0, 6.2832);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // kaya
+  ctx.rotate(m.aci);
+  ctx.shadowColor = "#ff7a2e"; ctx.shadowBlur = 22;
+  var kaya = ctx.createRadialGradient(-m.boy * 0.3, -m.boy * 0.3, m.boy * 0.15, 0, 0, m.boy);
+  kaya.addColorStop(0, "#7a5a4a");
+  kaya.addColorStop(1, "#33221c");
+  ctx.fillStyle = kaya;
+  ctx.beginPath();
+  for (var k = 0; k < 9; k++) {
+    var a = (k / 9) * 6.2832;
+    var rr = m.boy * (0.78 + ((k * 37) % 10) / 34);
+    ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // kızgın çatlaklar
+  ctx.strokeStyle = "#ff8a3d"; ctx.lineWidth = m.boy * 0.10; ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(-m.boy * 0.42, -m.boy * 0.12); ctx.lineTo(0, m.boy * 0.14); ctx.lineTo(m.boy * 0.38, -m.boy * 0.22);
+  ctx.stroke();
+  ctx.fillStyle = "#2a1a14";
+  ctx.beginPath(); ctx.arc(m.boy * 0.22, m.boy * 0.30, m.boy * 0.14, 0, 6.2832); ctx.fill();
+  ctx.restore();
+}
+
+function cakraCiz(c) {
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  var nabiz = 1 + Math.sin(sayac * 0.14 + c.faz) * 0.12;
+  ctx.globalAlpha = 0.30;
+  ctx.strokeStyle = "#6fd8ff"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(0, 0, 24 * nabiz, 0, 6.2832); ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  ctx.shadowColor = "#6fd8ff"; ctx.shadowBlur = 26;
+  var kg = ctx.createRadialGradient(-4, -4, 2, 0, 0, 17);
+  kg.addColorStop(0, "#eafaff");
+  kg.addColorStop(0.5, "#6fd8ff");
+  kg.addColorStop(1, "#1c7fb8");
+  ctx.fillStyle = kg;
+  ctx.beginPath(); ctx.arc(0, 0, 15, 0, 6.2832); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // içinde dönen çakra sarmalı
+  ctx.strokeStyle = "rgba(255,255,255,0.75)"; ctx.lineWidth = 2.2; ctx.lineCap = "round";
+  ctx.beginPath();
+  for (var s = 0; s <= 22; s++) {
+    var ac = s / 22 * Math.PI * 2.4 + sayac * 0.08;
+    var yc = 2 + (s / 22) * 8.5;
+    var px = Math.cos(ac) * yc, py = Math.sin(ac) * yc;
+    if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+
+// ===========================================================
+//   KEDİ  (kuyruk = can, Naruto bandanası)
+// ===========================================================
+function kediSavurAcisi() {
+  if (kuyrukSaldiri <= 0) return 0;
+  var t = 1 - kuyrukSaldiri / 22;
+  return Math.sin(t * Math.PI * 2) * 1.35;   // önce bir yana, sonra öbür yana savrulur
+}
+
+function kuyruklariCiz(r, sayi, alevli, savurAci) {
+  savurAci = savurAci || 0;
+  var adet = Math.max(0, Math.min(EN_COK_KUYRUK, sayi));
+  if (adet === 0) return;
+  var yayilim = Math.PI * (adet === 1 ? 0 : 1.08);
+  var tabanY = r * 0.50;
+
+  for (var i = 0; i < adet; i++) {
+    var t = adet === 1 ? 0.5 : i / (adet - 1);
+    var a = -yayilim / 2 + yayilim * t + Math.sin(sayac * 0.06 + i * 0.75) * 0.15 + savurAci;
+    var uzunluk = r * (2.15 + Math.sin(sayac * 0.05 + i) * 0.10);
+    var ucX = Math.sin(a) * uzunluk;
+    var ucY = tabanY - Math.cos(a) * uzunluk * 0.88;
+    var kontrolX = Math.sin(a) * uzunluk * 0.26;
+    var kontrolY = tabanY - Math.cos(a) * uzunluk * 0.30 + r * 0.26;
+
+    for (var j = 0; j <= 16; j++) {
+      var u = j / 16, tersU = 1 - u;
+      var px = 2 * tersU * u * kontrolX + u * u * ucX;
+      var py = tersU * tersU * tabanY + 2 * tersU * u * kontrolY + u * u * ucY;
+      var kalinlik = r * (0.155 - 0.105 * u);
+      if (alevli) {
+        ctx.shadowColor = "#ff9a2e"; ctx.shadowBlur = 16;
+        ctx.fillStyle = u > 0.55 ? "#ffd75e" : "#ff8a2e";
+      } else {
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = (j % 4 === 0 && u > 0.2) ? KEDI_RENK.cizgi : KEDI_RENK.koyu;
+      }
+      ctx.beginPath(); ctx.arc(px, py, kalinlik, 0, 6.2832); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+  }
+}
+
+function bandanaCiz(r, altin) {
+  var bandY = -r * 0.60;
+  ctx.fillStyle = "#2b3f78";
+  yuvarlakKutu(-r * 0.86, bandY - r * 0.15, r * 1.72, r * 0.30, r * 0.07); ctx.fill();
+  ctx.fillStyle = "#24356a";
+  for (var k = 0; k < 2; k++) {
+    var dalga = Math.sin(sayac * 0.10 + k * 1.4) * r * 0.10;
+    ctx.beginPath();
+    ctx.moveTo(r * 0.80, bandY - r * 0.10);
+    ctx.quadraticCurveTo(r * (1.15 + k * 0.10), bandY + r * (0.25 + k * 0.20) + dalga,
+                         r * (1.02 + k * 0.16), bandY + r * (0.70 + k * 0.26) + dalga);
+    ctx.lineTo(r * (0.86 + k * 0.16), bandY + r * (0.66 + k * 0.26) + dalga);
+    ctx.quadraticCurveTo(r * (1.00 + k * 0.10), bandY + r * (0.24 + k * 0.20) + dalga, r * 0.74, bandY + r * 0.02);
+    ctx.closePath(); ctx.fill();
+  }
+  var plaka = ctx.createLinearGradient(0, bandY - r * 0.13, 0, bandY + r * 0.13);
+  plaka.addColorStop(0, altin ? "#ffe9a8" : "#e8ecf2");
+  plaka.addColorStop(0.5, altin ? "#ffc94d" : "#b9c2cf");
+  plaka.addColorStop(1, altin ? "#e0a022" : "#8b95a5");
+  ctx.fillStyle = plaka;
+  yuvarlakKutu(-r * 0.48, bandY - r * 0.14, r * 0.96, r * 0.28, r * 0.06); ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.30)"; ctx.lineWidth = 1.2;
+  yuvarlakKutu(-r * 0.48, bandY - r * 0.14, r * 0.96, r * 0.28, r * 0.06); ctx.stroke();
+  ctx.strokeStyle = altin ? "#7a3b00" : "#3a4354";
+  ctx.lineWidth = r * 0.045; ctx.lineCap = "round";
+  ctx.beginPath();
+  for (var s = 0; s <= 26; s++) {
+    var ac = s / 26 * Math.PI * 2.6;
+    var yc = r * 0.035 + (s / 26) * r * 0.085;
+    var sx = Math.cos(ac - Math.PI / 2) * yc, sy = bandY + Math.sin(ac - Math.PI / 2) * yc;
+    if (s === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+  }
+  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, bandY + r * 0.12); ctx.lineTo(r * 0.16, bandY + r * 0.12); ctx.stroke();
+  ctx.fillStyle = altin ? "#7a3b00" : "#5b6577";
+  ctx.beginPath(); ctx.arc(-r * 0.40, bandY, r * 0.030, 0, 6.2832); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.40, bandY, r * 0.030, 0, 6.2832); ctx.fill();
+}
+
+function kediyiCiz(mx, my) {
+  var r = KEDI_BOYU / 2;
+  var kx = (mx === undefined) ? kedi.x : mx;
+  var ky = (my === undefined) ? kedi.y : my;
+  var alevli = dokuzKuyrukModu();
+  var ex = 1 + kedi.ezilme, ey = 1 - kedi.ezilme;
+
+  // vurulunca yanıp sönsün
+  if (dokunulmaz > 0 && Math.floor(dokunulmaz / 5) % 2 === 0) ctx.globalAlpha = 0.35;
+
+  // çakra aurası
+  if (alevli) {
+    ctx.save();
+    var nabizA = 1 + Math.sin(sayac * 0.13) * 0.06;
+    var aura = ctx.createRadialGradient(kx, ky + r * 0.35, r * 0.5, kx, ky + r * 0.35, r * 2.15 * nabizA);
+    aura.addColorStop(0, "rgba(255,180,60,0.36)");
+    aura.addColorStop(0.55, "rgba(255,130,30,0.18)");
+    aura.addColorStop(1, "rgba(255,110,20,0)");
+    ctx.fillStyle = aura;
+    ctx.beginPath(); ctx.arc(kx, ky + r * 0.35, r * 2.15 * nabizA, 0, 6.2832); ctx.fill();
+    ctx.strokeStyle = "rgba(255,200,90,0.55)"; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (var al = 0; al <= 44; al++) {
+      var aa = (al / 44) * 6.2832;
+      var dalgaR = r * 1.42 + Math.sin(aa * 5 + sayac * 0.20) * r * 0.10 + Math.sin(aa * 9 - sayac * 0.13) * r * 0.05;
+      var ax = kx + Math.cos(aa) * dalgaR, ay = ky + r * 0.35 + Math.sin(aa) * dalgaR;
+      if (al === 0) ctx.moveTo(ax, ay); else ctx.lineTo(ax, ay);
+    }
+    ctx.closePath(); ctx.stroke();
+    ctx.restore();
+  }
+
+  // GÖVDE
+  ctx.save();
+  ctx.translate(kx, ky + r * 0.72);
+  ctx.rotate(kedi.egim * 0.35);
+  ctx.scale(ex, ey);
+  kuyruklariCiz(r, can, alevli, kediSavurAcisi());
+  var govde = ctx.createLinearGradient(0, -r * 0.4, 0, r * 0.9);
+  govde.addColorStop(0, KEDI_RENK.ana); govde.addColorStop(1, KEDI_RENK.koyu);
+  ctx.fillStyle = govde;
+  ctx.beginPath(); ctx.ellipse(0, r * 0.25, r * 0.78, r * 0.62, 0, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = "#fdf6ec"; ctx.globalAlpha *= 0.85;
+  ctx.beginPath(); ctx.ellipse(0, r * 0.34, r * 0.34, r * 0.42, 0, 0, 6.2832); ctx.fill();
+  ctx.globalAlpha = (dokunulmaz > 0 && Math.floor(dokunulmaz / 5) % 2 === 0) ? 0.35 : 1;
+  ctx.fillStyle = KEDI_RENK.ana;
+  ctx.beginPath(); ctx.ellipse(-r * 0.34, r * 0.72, r * 0.20, r * 0.13, 0, 0, 6.2832); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(r * 0.34, r * 0.72, r * 0.20, r * 0.13, 0, 0, 6.2832); ctx.fill();
+  ctx.restore();
+
+  // KAFA
+  ctx.save();
+  ctx.translate(kx, ky - kedi.basKalk * r * 0.30 + Math.sin(sayac * 0.05) * r * 0.02);
+  ctx.rotate(kedi.basAci + kedi.egim * 0.25);
+  ctx.scale(ex, ey);
+
+  ctx.fillStyle = KEDI_RENK.koyu;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.80, -r * 0.52); ctx.lineTo(-r * 0.58, -r * 1.22); ctx.lineTo(-r * 0.14, -r * 0.80);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(r * 0.80, -r * 0.52); ctx.lineTo(r * 0.58, -r * 1.22); ctx.lineTo(r * 0.14, -r * 0.80);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#f08fae";
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.62, -r * 0.62); ctx.lineTo(-r * 0.56, -r * 1.00); ctx.lineTo(-r * 0.31, -r * 0.76);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(r * 0.62, -r * 0.62); ctx.lineTo(r * 0.56, -r * 1.00); ctx.lineTo(r * 0.31, -r * 0.76);
+  ctx.closePath(); ctx.fill();
+
+  var kafa = ctx.createRadialGradient(-r * 0.2, -r * 0.32, r * 0.1, 0, 0, r * 1.1);
+  kafa.addColorStop(0, KEDI_RENK.ana); kafa.addColorStop(1, KEDI_RENK.koyu);
+  ctx.fillStyle = kafa;
+  ctx.beginPath(); ctx.ellipse(0, 0, r * 0.98, r * 0.90, 0, 0, 6.2832); ctx.fill();
+
+  ctx.fillStyle = KEDI_RENK.koyu;
+  for (var yt = -1; yt <= 1; yt += 2) {
+    for (var f = 0; f < 3; f++) {
+      ctx.beginPath();
+      ctx.moveTo(yt * r * 0.80, r * (0.02 + f * 0.18));
+      ctx.lineTo(yt * r * 1.10, r * (-0.04 + f * 0.18));
+      ctx.lineTo(yt * r * 0.80, r * (0.14 + f * 0.18));
+      ctx.closePath(); ctx.fill();
+    }
+  }
+
+  bandanaCiz(r, alevli);
+
+  var gozY = -r * 0.14;
+  if (kedi.gozKirp > 0) {
+    ctx.strokeStyle = "#101018"; ctx.lineWidth = r * 0.10; ctx.lineCap = "round";
+    for (var gk = -1; gk <= 1; gk += 2) {
+      ctx.beginPath();
+      ctx.arc(gk * r * 0.36, gozY + r * 0.10, r * 0.21, Math.PI * 1.12, Math.PI * 1.88);
+      ctx.stroke();
+    }
+  } else {
+    for (var g2 = -1; g2 <= 1; g2 += 2) {
+      ctx.fillStyle = alevli ? "#ffeec9" : "#f7fbe8";
+      ctx.beginPath(); ctx.ellipse(g2 * r * 0.36, gozY, r * 0.22, r * 0.26, 0, 0, 6.2832); ctx.fill();
+      var iris = ctx.createRadialGradient(g2 * r * 0.36, gozY - r * 0.05, r * 0.03, g2 * r * 0.36, gozY, r * 0.20);
+      if (alevli) { iris.addColorStop(0, "#ffb347"); iris.addColorStop(1, "#d92b1c"); }
+      else        { iris.addColorStop(0, "#b7e86a"); iris.addColorStop(1, "#6aa832"); }
+      ctx.fillStyle = iris;
+      ctx.beginPath();
+      ctx.ellipse(g2 * r * 0.36 + kedi.bakisX * r * 0.07, gozY + kedi.bakisY * r * 0.08, r * 0.16, r * 0.20, 0, 0, 6.2832);
+      ctx.fill();
+      ctx.fillStyle = "#101018";
+      ctx.beginPath();
+      ctx.ellipse(g2 * r * 0.36 + kedi.bakisX * r * 0.07, gozY + kedi.bakisY * r * 0.08, r * 0.055, r * 0.18, 0, 0, 6.2832);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath(); ctx.arc(g2 * r * 0.36 - r * 0.06, gozY - r * 0.10, r * 0.045, 0, 6.2832); ctx.fill();
+    }
+  }
+
+  ctx.fillStyle = "#fdf6ec";
+  ctx.beginPath(); ctx.ellipse(-r * 0.16, r * 0.34, r * 0.20, r * 0.15, 0, 0, 6.2832); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(r * 0.16, r * 0.34, r * 0.20, r * 0.15, 0, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = "#e8698f";
+  ctx.beginPath();
+  ctx.moveTo(0, r * 0.26); ctx.lineTo(-r * 0.11, r * 0.14); ctx.lineTo(r * 0.11, r * 0.14);
+  ctx.closePath(); ctx.fill();
+
+  var agizY = r * 0.06 + kedi.agiz * r * 0.36;
+  ctx.fillStyle = "#3d1f2e";
+  ctx.beginPath(); ctx.ellipse(0, r * 0.38 + agizY * 0.35, r * 0.30, agizY, 0, 0, 6.2832); ctx.fill();
+  if (kedi.agiz > 0.25) {
+    ctx.fillStyle = "#ff7a9c";
+    ctx.beginPath(); ctx.ellipse(0, r * 0.38 + agizY * 0.75, r * 0.16, agizY * 0.42, 0, 0, 6.2832); ctx.fill();
+  }
+
+  ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1.8;
+  for (var s3 = -1; s3 <= 1; s3 += 2) {
+    for (var k3 = 0; k3 < 3; k3++) {
+      ctx.beginPath();
+      ctx.moveTo(s3 * r * 0.26, r * 0.26 + k3 * r * 0.055);
+      ctx.quadraticCurveTo(s3 * r * 0.75, r * (0.14 + k3 * 0.10), s3 * r * 1.20, r * (0.05 + k3 * 0.16));
+      ctx.stroke();
+    }
+  }
+
+  if (durum === "bitti") {
+    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 4;
+    for (var gx = -1; gx <= 1; gx += 2) {
+      var cx = gx * r * 0.36;
+      ctx.beginPath();
+      ctx.moveTo(cx - r * 0.15, gozY - r * 0.15); ctx.lineTo(cx + r * 0.15, gozY + r * 0.15);
+      ctx.moveTo(cx + r * 0.15, gozY - r * 0.15); ctx.lineTo(cx - r * 0.15, gozY + r * 0.15);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+
+// ===========================================================
+//   KONTROLLER
+// ===========================================================
+var tuslar = {};
+document.addEventListener("keydown", function (e) {
+  tuslar[e.key] = true;
+  sesiUyandir();
+  if (e.repeat) return;
+  if (e.key === " " || e.key === "Enter") {
+    e.preventDefault();
+    if (durum === "menu")          { oyunuBaslat(); sesBolum(); }
+    else if (durum === "oyun")     { durum = "duraklat"; sesDurakla(); }
+    else if (durum === "duraklat") { durum = "oyun"; sesDevam(); }
+    else if (durum === "bitti")    { oyunuBaslat(); }
+    return;
+  }
+  if (e.key === "p" || e.key === "P") {
+    if (durum === "oyun")          { durum = "duraklat"; sesDurakla(); }
+    else if (durum === "duraklat") { durum = "oyun"; sesDevam(); }
+  }
+  if ((e.key === "r" || e.key === "R") && (durum === "bitti" || durum === "duraklat")) oyunuBaslat();
+  if (e.key === "f" || e.key === "F") tamEkranDegistir();
+  if (e.key === "m" || e.key === "M") {
+    sesKapali = !sesKapali; kaydet();
+    if (!sesKapali) ton(800, 0.10, "sine", 0.15);
+  }
+  if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.key) >= 0) e.preventDefault();
+});
+document.addEventListener("keyup", function (e) { tuslar[e.key] = false; });
+
+ekran.addEventListener("click", function (e) {
+  sesiUyandir();
+  var f = fareKonumu(e);
+  if (durum === "menu" || durum === "duraklat") {
+    var b = tamEkranButonu;
+    if (f.x >= b.x - 6 && f.x <= b.x + b.boy + 6 && f.y >= b.y - 6 && f.y <= b.y + b.boy + 6) {
+      tamEkranDegistir(); return;
+    }
+  }
+  if (durum === "menu")          { oyunuBaslat(); sesBolum(); }
+  else if (durum === "bitti")    { oyunuBaslat(); }
+  else if (durum === "duraklat") { durum = "oyun"; sesDevam(); }
+});
+
+
+// ===========================================================
+//   ARAYÜZ
+// ===========================================================
+function kuyrukSayaciniCiz(x, y) {
+  for (var i = 0; i < EN_COK_KUYRUK; i++) {
+    var kx = x + i * 25, acik = i < can;
+    ctx.save();
+    ctx.translate(kx, y);
+    if (acik && dokuzKuyrukModu()) { ctx.shadowColor = "#ff9a2e"; ctx.shadowBlur = 10; }
+    ctx.strokeStyle = acik ? (dokuzKuyrukModu() ? "#ffc94d" : "#ff9f4d") : "rgba(255,255,255,0.14)";
+    ctx.lineWidth = acik ? 4.5 : 3; ctx.lineCap = "round";
+    var sallan = acik ? Math.sin(sayac * 0.07 + i * 0.75) * 2.5 : 0;
+    ctx.beginPath();
+    ctx.moveTo(0, 9); ctx.quadraticCurveTo(-4 + sallan, 1, 1 + sallan, -9);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function saniye(kare) { return (kare / 60).toFixed(1); }
+
+function bilgileriCiz() {
+  camPanel(20, 18, 268, 118, 18);
+  ctx.textAlign = "left";
+  ctx.font = "800 12px " + YAZI_FONT;
+  ctx.fillStyle = can <= 1 ? "#ff7a7a" : "#ffffff77";
+  ctx.fillText("KUYRUK  " + can + " / " + EN_COK_KUYRUK, 36, 36);
+  if (can <= 1) {
+    ctx.globalAlpha = 0.3 + Math.sin(sayac * 0.25) * 0.3;
+    ctx.fillStyle = "#ff5a5a";
+    ctx.fillText("KUYRUK  " + can + " / " + EN_COK_KUYRUK, 36, 36);
+    ctx.globalAlpha = 1;
+  }
+  kuyrukSayaciniCiz(40, 56);
+
+  ctx.font = "600 30px " + BASLIK_FONT;
+  ctx.fillStyle = "#ffe066";
+  ctx.fillText(saniye(sure), 36, 100);
+  ctx.font = "700 13px " + YAZI_FONT;
+  ctx.fillStyle = "#ffffff77";
+  ctx.fillText("SANİYE", 36 + ctx.measureText(saniye(sure)).width + 44, 100);
+
+  ctx.font = "600 17px " + BASLIK_FONT;
+  ctx.fillStyle = "#c9b6ff"; ctx.textAlign = "right";
+  ctx.fillText("BÖLÜM " + bolum, 272, 100);
+
+  ctx.textAlign = "left";
+  ctx.font = "700 12px " + YAZI_FONT;
+  ctx.fillStyle = "#6fd8ff";
+  ctx.fillText("Mavi çakra küresi = +1 kuyruk", 36, 124);
+
+  // sağ üst
+  camPanel(GENISLIK - 236, 18, 216, 86, 18);
+  ctx.textAlign = "right";
+  ctx.font = "600 22px " + BASLIK_FONT;
+  ctx.fillStyle = "#ffd84d";
+  ctx.fillText("REKOR " + rekor.toFixed(1) + "s", GENISLIK - 36, 48);
+  ctx.font = "700 12px " + YAZI_FONT;
+  ctx.fillStyle = "#ffffff88";
+  ctx.fillText("En iyi bölüm: " + enYuksekBolum, GENISLIK - 36, 70);
+  ctx.fillText("Dokuz Kuyruk: " + evrimSayisi + " kere", GENISLIK - 36, 88);
+
+  ctx.font = "700 12px " + YAZI_FONT;
+  ctx.fillStyle = sesKapali ? "#ff9d9d" : "#ffffff44";
+  ctx.fillText(sesKapali ? "SES KAPALI (M)" : "ses açık (M)", GENISLIK - 24, YUKSEKLIK - 16);
+  if (!kayitCalisiyor) {
+    ctx.fillStyle = "#ff9d9d";
+    ctx.fillText("(kayıt yapılamıyor)", GENISLIK - 24, YUKSEKLIK - 34);
+  }
+
+  // DOKUZ KUYRUK MODU sayacı
+  if (dokuzKuyrukModu()) {
+    var oran = evrimSayac / EVRIM_SURESI;
+    camPanel(GENISLIK / 2 - 150, YUKSEKLIK - 60, 300, 38, 19, "#ffc94d99");
+    ctx.fillStyle = "#ffb347"; ctx.globalAlpha = 0.35;
+    yuvarlakKutu(GENISLIK / 2 - 150, YUKSEKLIK - 60, 300 * oran, 38, 19); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.textAlign = "center";
+    ctx.font = "600 17px " + BASLIK_FONT;
+    ctx.fillStyle = "#ffe9a8";
+    ctx.shadowColor = "#ff9a2e"; ctx.shadowBlur = 12;
+    ctx.fillText("DOKUZ KUYRUK MODU  " + Math.ceil(evrimSayac / 60) + "sn", GENISLIK / 2, YUKSEKLIK - 34);
+    ctx.shadowBlur = 0;
+  }
+
+  if (boss) bossCanCubuguCiz();
+  saldiriCubuklariniCiz();
+
+  if (bossYazi > 0) {
+    ctx.textAlign = "center";
+    ctx.globalAlpha = Math.min(1, bossYazi / 40);
+    var bo = 1 - bossYazi / 170;
+    ctx.font = "700 " + Math.floor(34 + zipla(Math.min(1, bo * 4)) * 20) + "px " + BASLIK_FONT;
+    ctx.fillStyle = "#ff8a8a";
+    ctx.shadowColor = "rgba(255,70,70,0.7)"; ctx.shadowBlur = 32;
+    ctx.fillText(bossYaziMetin, GENISLIK / 2, 260);
+    ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+  }
+
+  if (bolumYazi > 0) {
+    ctx.textAlign = "center";
+    ctx.globalAlpha = Math.min(1, bolumYazi / 30);
+    ctx.font = "600 48px " + BASLIK_FONT;
+    ctx.fillStyle = "#c9b6ff";
+    ctx.shadowColor = "#7b5cff"; ctx.shadowBlur = 28;
+    ctx.fillText("BÖLÜM " + bolum, GENISLIK / 2, 300);
+    ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+  }
+  if (evrimYazi > 0) {
+    ctx.textAlign = "center";
+    ctx.globalAlpha = Math.min(1, evrimYazi / 30);
+    var eo = 1 - evrimYazi / 120;
+    ctx.font = "700 " + Math.floor(38 + zipla(Math.min(1, eo * 4)) * 18) + "px " + BASLIK_FONT;
+    ctx.fillStyle = "#ffd84d";
+    ctx.shadowColor = "#ffb700"; ctx.shadowBlur = 34;
+    ctx.fillText("DOKUZ KUYRUK MODU!", GENISLIK / 2, 220);
+    ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+  }
+  if (kayitYazi > 0) {
+    ctx.textAlign = "center";
+    ctx.globalAlpha = Math.min(1, kayitYazi / 40);
+    ctx.font = "800 13px " + YAZI_FONT; ctx.fillStyle = "#4dd97f";
+    ctx.fillText("Kaydedildi", GENISLIK / 2, YUKSEKLIK - 16);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function menuyuCiz() {
+  ctx.fillStyle = "rgba(10,5,18,0.62)";
+  ctx.fillRect(0, 0, GENISLIK, YUKSEKLIK);
+  var suzul = Math.sin(sayac * 0.028) * 5;
+
+  ctx.textAlign = "center";
+  var bg = ctx.createLinearGradient(0, 74, 0, 152);
+  bg.addColorStop(0, "#fff3b0"); bg.addColorStop(0.5, "#ffd75e"); bg.addColorStop(1, "#ff7a3d");
+  ctx.font = "700 50px " + BASLIK_FONT;
+  ctx.shadowColor = "rgba(255,140,40,0.55)"; ctx.shadowBlur = 38;
+  ctx.fillStyle = bg;
+  ctx.fillText("METEORDAN KAÇAN", GENISLIK / 2, 108 + suzul);
+  ctx.font = "700 66px " + BASLIK_FONT;
+  ctx.fillText("KEDİ", GENISLIK / 2, 170 + suzul);
+  ctx.shadowBlur = 0;
+
+  var cg2 = ctx.createLinearGradient(GENISLIK / 2 - 190, 0, GENISLIK / 2 + 190, 0);
+  cg2.addColorStop(0, "rgba(255,215,94,0)");
+  cg2.addColorStop(0.5, "rgba(255,215,94,0.85)");
+  cg2.addColorStop(1, "rgba(255,215,94,0)");
+  ctx.fillStyle = cg2;
+  ctx.fillRect(GENISLIK / 2 - 190, 190 + suzul, 380, 2);
+
+  ctx.font = "800 12px " + YAZI_FONT;
+  ctx.fillStyle = "#a98bff";
+  ctx.letterSpacing = "3px";
+  ctx.fillText("Y A P I M C I L A R", GENISLIK / 2, 220 + suzul);
+  ctx.letterSpacing = "0px";
+  ctx.font = "600 25px " + BASLIK_FONT;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(YAPIMCI_1, GENISLIK / 2, 252 + suzul);
+  ctx.fillText(YAPIMCI_2, GENISLIK / 2, 284 + suzul);
+  ctx.font = "700 13px " + YAZI_FONT;
+  ctx.fillStyle = "#ffffff66";
+  ctx.fillText(TARIH, GENISLIK / 2, 310 + suzul);
+
+  kediyiCiz(GENISLIK / 2, 400);
+
+  var nabiz = 1 + Math.sin(sayac * 0.07) * 0.028;
+  var dg = 252 * nabiz, dy = 56 * nabiz;
+  ctx.save();
+  ctx.shadowColor = "rgba(255,140,50,0.55)";
+  ctx.shadowBlur = 26 + Math.sin(sayac * 0.07) * 10;
+  var dgrad = ctx.createLinearGradient(0, 486 - dy / 2, 0, 486 + dy / 2);
+  dgrad.addColorStop(0, "#ffd75e"); dgrad.addColorStop(1, "#ff7a3d");
+  ctx.fillStyle = dgrad;
+  yuvarlakKutu(GENISLIK / 2 - dg / 2, 486 - dy / 2, dg, dy, dy / 2); ctx.fill();
+  ctx.restore();
+  ctx.font = "600 22px " + BASLIK_FONT;
+  ctx.fillStyle = "#3a1a00";
+  ctx.fillText("BOŞLUK  ·  BAŞLA", GENISLIK / 2, 494);
+
+  ctx.font = "700 13px " + YAZI_FONT;
+  ctx.fillStyle = "#ffffff66";
+  ctx.fillText("Meteorlar HER YÖNDEN gelir — ok tuşlarıyla her yöne kaç!", GENISLIK / 2, 528);
+  ctx.fillStyle = "#ff9a9a";
+  ctx.font = "800 13px " + YAZI_FONT;
+  ctx.fillText("BÖLÜM 3 PAIN  ·  BÖLÜM 5 MADARA  ·  BÖLÜM 7 NAGATO", GENISLIK / 2, 548);
+  ctx.font = "700 13px " + YAZI_FONT;
+  ctx.fillStyle = "#6fd8ff";
+  ctx.fillText("X = çakra topu at   ·   C = kuyruğunu savur", GENISLIK / 2, 568);
+  ctx.font = "800 13px " + YAZI_FONT;
+  ctx.fillStyle = "#ffd84d";
+  ctx.fillText("REKOR " + rekor.toFixed(1) + "s  ·  EN İYİ BÖLÜM " + enYuksekBolum + "  ·  YENİLEN BOSS " + yenilenBossSayisi, GENISLIK / 2, 590);
+
+  tamEkranDugmesiniCiz();
+}
+
+function duraklatEkraniniCiz() {
+  ctx.fillStyle = "rgba(10,5,18,0.74)";
+  ctx.fillRect(0, 0, GENISLIK, YUKSEKLIK);
+  var nabiz = Math.sin(sayac * 0.06) * 3;
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#ffd75e";
+  ctx.shadowColor = "rgba(255,215,94,0.5)"; ctx.shadowBlur = 26;
+  yuvarlakKutu(GENISLIK / 2 - 34, 196 + nabiz, 22, 66, 8); ctx.fill();
+  yuvarlakKutu(GENISLIK / 2 + 12, 196 + nabiz, 22, 66, 8); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.font = "700 46px " + BASLIK_FONT;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText("DURAKLADI", GENISLIK / 2, 318);
+
+  camPanel(GENISLIK / 2 - 170, 344, 340, 76, 18);
+  ctx.font = "800 12px " + YAZI_FONT;
+  ctx.fillStyle = "#ffffff66";
+  ctx.fillText("SANİYE", GENISLIK / 2 - 108, 370);
+  ctx.fillText("BÖLÜM", GENISLIK / 2, 370);
+  ctx.fillText("KUYRUK", GENISLIK / 2 + 108, 370);
+  ctx.font = "600 26px " + BASLIK_FONT;
+  ctx.fillStyle = "#ffe066"; ctx.fillText(saniye(sure), GENISLIK / 2 - 108, 402);
+  ctx.fillStyle = "#c9b6ff"; ctx.fillText(bolum, GENISLIK / 2, 402);
+  ctx.fillStyle = "#ff9f4d"; ctx.fillText(can, GENISLIK / 2 + 108, 402);
+
+  ctx.font = "600 21px " + BASLIK_FONT;
+  ctx.fillStyle = Math.sin(sayac * 0.09) > 0 ? "#ffffff" : "#ffffff55";
+  ctx.fillText("BOŞLUK  ·  devam et", GENISLIK / 2, 470);
+  ctx.font = "700 13px " + YAZI_FONT;
+  ctx.fillStyle = "#ffffff55";
+  ctx.fillText("R  ·  baştan başla        F  ·  tam ekran", GENISLIK / 2, 498);
+  tamEkranDugmesiniCiz();
+}
+
+function bittiEkraniniCiz() {
+  ctx.fillStyle = "rgba(26,4,10,0.78)";
+  ctx.fillRect(0, 0, GENISLIK, YUKSEKLIK);
+  ctx.textAlign = "center";
+  ctx.font = "700 56px " + BASLIK_FONT;
+  ctx.fillStyle = "#ff5a5a";
+  ctx.shadowColor = "rgba(255,60,60,0.5)"; ctx.shadowBlur = 30;
+  ctx.fillText("KEDİ DÜŞTÜ", GENISLIK / 2, 176);
+  ctx.shadowBlur = 0;
+
+  camPanel(GENISLIK / 2 - 200, 210, 400, 92, 20);
+  ctx.font = "800 12px " + YAZI_FONT;
+  ctx.fillStyle = "#ffffff66";
+  ctx.fillText("HAYATTA KALDIN", GENISLIK / 2 - 130, 240);
+  ctx.fillText("BÖLÜM", GENISLIK / 2, 240);
+  ctx.fillText("YENİLEN BOSS", GENISLIK / 2 + 130, 240);
+  ctx.font = "600 30px " + BASLIK_FONT;
+  ctx.fillStyle = "#ffe066"; ctx.fillText(saniye(sure) + "s", GENISLIK / 2 - 130, 280);
+  ctx.fillStyle = "#c9b6ff"; ctx.fillText(bolum, GENISLIK / 2, 280);
+  ctx.fillStyle = "#ff9f4d"; ctx.fillText(sonrakiBoss > 0 ? (sonrakiBoss - (boss ? 1 : 0)) : 0, GENISLIK / 2 + 130, 280);
+
+  var gecen = sure / 60;
+  var yeniRekor = (gecen >= rekor && gecen > 0);
+  ctx.font = "600 24px " + BASLIK_FONT;
+  if (yeniRekor) {
+    ctx.fillStyle = "#4dd97f";
+    ctx.shadowColor = "rgba(77,217,127,0.5)"; ctx.shadowBlur = 20;
+    ctx.fillText("YENİ REKOR!  " + rekor.toFixed(1) + "s", GENISLIK / 2, 342);
+    ctx.shadowBlur = 0;
+  } else {
+    ctx.fillStyle = "#ffffff88";
+    ctx.fillText("Rekorun: " + rekor.toFixed(1) + "s", GENISLIK / 2, 342);
+  }
+
+  var nabiz = 1 + Math.sin(sayac * 0.07) * 0.03;
+  var dg = 268 * nabiz, dy = 54 * nabiz;
+  ctx.save();
+  ctx.shadowColor = "rgba(255,140,50,0.5)"; ctx.shadowBlur = 24;
+  var dgrad = ctx.createLinearGradient(0, 400 - dy / 2, 0, 400 + dy / 2);
+  dgrad.addColorStop(0, "#ffd75e"); dgrad.addColorStop(1, "#ff7a3d");
+  ctx.fillStyle = dgrad;
+  yuvarlakKutu(GENISLIK / 2 - dg / 2, 400 - dy / 2, dg, dy, dy / 2); ctx.fill();
+  ctx.restore();
+  ctx.font = "600 21px " + BASLIK_FONT;
+  ctx.fillStyle = "#3a1a00";
+  ctx.fillText("BOŞLUK  ·  yeniden dene", GENISLIK / 2, 408);
+}
+
+
+// ===========================================================
+//   METEOR ÜRET — HER YÖNDEN gelir
+// ===========================================================
+function meteorUret() {
+  var kenar = Math.floor(Math.random() * 4);   // 0 üst, 1 sağ, 2 alt, 3 sol
+  var x, y;
+  if (kenar === 0)      { x = Math.random() * GENISLIK; y = -50; }
+  else if (kenar === 1) { x = GENISLIK + 50; y = Math.random() * YUKSEKLIK; }
+  else if (kenar === 2) { x = Math.random() * GENISLIK; y = YUKSEKLIK + 50; }
+  else                  { x = -50; y = Math.random() * YUKSEKLIK; }
+
+  var hedefX, hedefY;
+  if (Math.random() < NISANCI_SANSI) {         // nişancı: doğrudan kediye
+    hedefX = kedi.x; hedefY = kedi.y;
+  } else {                                     // rastgele: ekranı çaprazlama geçer
+    hedefX = 100 + Math.random() * (GENISLIK - 200);
+    hedefY = 100 + Math.random() * (YUKSEKLIK - 200);
+  }
+  var dx = hedefX - x, dy = hedefY - y;
+  var uz = Math.sqrt(dx * dx + dy * dy) || 1;
+  var h = meteorHizi() * (0.85 + Math.random() * 0.4);
+
+  meteorlar.push({
+    x: x, y: y,
+    vx: (dx / uz) * h, vy: (dy / uz) * h,
+    boy: METEOR_BOYU * (0.75 + Math.random() * 0.6),
+    aci: Math.random() * 6.28,
+    donus: (Math.random() - 0.5) * 0.09
+  });
+}
+
+function cakraUret() {
+  cakralar.push({
+    x: 60 + Math.random() * (GENISLIK - 120),
+    y: 60 + Math.random() * (YUKSEKLIK - 160),
+    omur: 480, faz: Math.random() * 6.28
+  });
+}
+
+function meteorPatlat(m) {
+  for (var p = 0; p < 16; p++) {
+    parcaciklar.push({
+      x: m.x, y: m.y,
+      vx: (Math.random() - 0.5) * 9, vy: (Math.random() - 0.5) * 9,
+      omur: 30, renk: p % 3 === 0 ? "#fff0b0" : "#ff8a3d", boy: 1.5 + Math.random() * 3
+    });
+  }
+  halkalar.push({ x: m.x, y: m.y, r: 6, maxR: 70, omur: 22, maxOmur: 22, renk: "#ff8a3d" });
+}
+
+
+// ===========================================================
+//   BOSS'LAR — Pain, Madara, Nagato
+//   Hepsinin 9 kuyruğu var, kuyruklarını savurarak vururlar
+// ===========================================================
+var BOSS_BILGI = [
+  { ad: "PAIN",   ten: "#d9b489", koyu: "#a5804f", sac: "#e0762a", goz: "rinnegan",  aura: "#b47cff" },
+  { ad: "MADARA", ten: "#c9a0a0", koyu: "#8d5c5c", sac: "#241d2b", goz: "sharingan", aura: "#ff5a5a" },
+  { ad: "NAGATO", ten: "#d2b4a2", koyu: "#95705c", sac: "#c23b3b", goz: "rinnegan",  aura: "#ff8ad8" }
+];
+
+function bossMenzil() { return boss.boy * BOSS_MENZIL_ORANI; }
+
+function bossCagir(sira) {
+  var bilgi = BOSS_BILGI[sira % BOSS_BILGI.length];
+  var canMiktar = BOSS_CANLARI[sira] || BOSS_CANLARI[BOSS_CANLARI.length - 1];
+  boss = {
+    sira: sira, bilgi: bilgi,
+    x: GENISLIK / 2, y: -200, hedefY: 190,
+    vx: 0, vy: 0,
+    can: canMiktar, maxCan: canMiktar,
+    boy: BOSS_BOYU,
+    durum: "giris", girisSayac: 110,
+    bekle: BOSS_SALDIRI_BEKLE,
+    hazirlik: 0, savurma: 0, savurYon: 1, savurVurdu: false,
+    kuyrukAci: 0, vuruldu: 0, olumSayac: 0, ezilme: 0, faz: 0, temasBekle: 0
+  };
+  meteorlar.length = 0;                 // ekran temizlenir, sadece boss kalır
+  bossYaziMetin = bilgi.ad + " GELDİ!";
+  bossYazi = 160;
+  sarsinti = 24 * SARSINTI_GUCU; ekranParlama = 0.5; donma = DONMA_KARE + 6;
+  sesBossGeldi();
+}
+
+function oyunBitti() {
+  can = 0; durum = "bitti";
+  sarsinti = 26 * SARSINTI_GUCU; donma = DONMA_KARE + 6;
+  sesOlum();
+  var gecenSn = sure / 60;
+  if (gecenSn > rekor) rekor = gecenSn;
+  kaydet();
+}
+
+function kediyeHasar() {
+  if (dokunulmaz > 0 || dokuzKuyrukModu()) return;
+  can--;
+  dokunulmaz = DOKUNULMAZLIK;
+  kediyiEz(-0.28);
+  sarsinti = 20 * SARSINTI_GUCU;
+  donma = DONMA_KARE + 2;
+  sesCarpma();
+  yazilar.push({ x: kedi.x, y: kedi.y - 100, omur: 55, metin: "-1 KUYRUK", renk: "#ff5a5a", boy: 23 });
+  for (var dk = 0; dk < 22; dk++) {
+    parcaciklar.push({
+      x: kedi.x + (Math.random() - 0.5) * KEDI_BOYU, y: kedi.y + KEDI_BOYU * 0.4,
+      vx: (Math.random() - 0.5) * 6, vy: -Math.random() * 3.5 - 0.5,
+      omur: 40, renk: "#b9a8d8", boy: 2 + Math.random() * 3
+    });
+  }
+  if (can <= 0) oyunBitti();
+}
+
+function bossaHasar(miktar) {
+  if (!boss || boss.durum !== "dovus") return;
+  boss.can -= miktar;
+  boss.vuruldu = 10;
+  boss.ezilme = 0.20;
+  sarsinti = 9 * SARSINTI_GUCU;
+  sesBossVuruldu();
+  yazilar.push({ x: boss.x, y: boss.y - boss.boy * 0.55, omur: 45,
+                 metin: "-" + miktar, renk: "#ffd84d", boy: 26 });
+  for (var i = 0; i < 18; i++) {
+    parcaciklar.push({
+      x: boss.x, y: boss.y,
+      vx: (Math.random() - 0.5) * 9, vy: (Math.random() - 0.5) * 9,
+      omur: 34, renk: i % 2 ? boss.bilgi.aura : "#ffffff", boy: 2 + Math.random() * 3
+    });
+  }
+  if (boss.can <= 0) {
+    boss.can = 0;
+    boss.durum = "olum";
+    boss.olumSayac = 100;
+    yenilenBossSayisi++;
+    bossYaziMetin = boss.bilgi.ad + " YENİLDİ!";
+    bossYazi = 170;
+    sarsinti = 30 * SARSINTI_GUCU; donma = DONMA_KARE + 8; ekranParlama = 0.6;
+    sesBossOldu();
+    halkalar.push({ x: boss.x, y: boss.y, r: 20, maxR: 420, omur: 55, maxOmur: 55, renk: boss.bilgi.aura });
+    if (can < EN_COK_KUYRUK) {                       // ödül: +1 kuyruk
+      can++;
+      yazilar.push({ x: kedi.x, y: kedi.y - 130, omur: 70, metin: "+1 KUYRUK ÖDÜL", renk: "#6fd8ff", boy: 22 });
+    }
+    kaydet();
+  }
+}
+
+function bossGuncelle() {
+  var b = boss;
+  b.faz += 0.05;
+  if (b.vuruldu > 0) b.vuruldu--;
+  if (b.temasBekle > 0) b.temasBekle--;
+  b.ezilme *= 0.86;
+
+  if (b.durum === "giris") {
+    b.y += (b.hedefY - b.y) * 0.055;
+    b.girisSayac--;
+    if (b.girisSayac <= 0) b.durum = "dovus";
+    return;
+  }
+
+  if (b.durum === "olum") {
+    b.olumSayac--;
+    b.y += 1.7;
+    if (b.olumSayac % 7 === 0) {
+      sesPatlama();
+      for (var q = 0; q < 14; q++) {
+        parcaciklar.push({
+          x: b.x + (Math.random() - 0.5) * b.boy, y: b.y + (Math.random() - 0.5) * b.boy,
+          vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10,
+          omur: 40, renk: q % 3 ? b.bilgi.aura : "#fff0b0", boy: 2 + Math.random() * 4
+        });
+      }
+    }
+    if (b.olumSayac <= 0) boss = null;
+    return;
+  }
+
+  // ---- DÖVÜŞ ----
+  var dx = kedi.x - b.x, dy = kedi.y - b.y;
+  var uz = Math.sqrt(dx * dx + dy * dy) || 1;
+  var carpismaR = (KEDI_BOYU / 2) * CARPISMA_ORANI;
+
+  // gövdeye değme
+  if (uz < b.boy * 0.40 + carpismaR) {
+    if (dokuzKuyrukModu()) {
+      if (b.temasBekle <= 0) { b.temasBekle = 22; bossaHasar(1); }
+    } else {
+      kediyeHasar();
+    }
+  }
+
+  if (b.hazirlik > 0) {                       // hazırlanıyor — kuyruklarını geri çekiyor
+    b.hazirlik--;
+    b.kuyrukAci += (-1.2 * b.savurYon - b.kuyrukAci) * 0.16;
+    if (b.hazirlik === 0) {
+      b.savurma = 26; b.savurVurdu = false;
+      sesSavur();
+      sarsinti = 11 * SARSINTI_GUCU;
+    }
+    return;
+  }
+
+  if (b.savurma > 0) {                        // SAVURUYOR!
+    b.savurma--;
+    var ilerleme = 1 - b.savurma / 26;
+    b.kuyrukAci = (-1.2 + 2.9 * yumusakCikis(ilerleme)) * b.savurYon;
+    if (!b.savurVurdu && ilerleme > 0.28 && ilerleme < 0.78 && uz < bossMenzil()) {
+      b.savurVurdu = true;
+      kediyeHasar();
+      halkalar.push({ x: b.x, y: b.y, r: 10, maxR: bossMenzil(), omur: 24, maxOmur: 24, renk: b.bilgi.aura });
+    }
+    if (b.savurma === 0) {
+      b.savurYon = -b.savurYon;
+      b.bekle = Math.max(52, BOSS_SALDIRI_BEKLE - b.sira * 18);
+    }
+    return;
+  }
+
+  // kediyi kovalar ama biraz mesafe bırakır
+  var hiz = BOSS_HIZI + b.sira * 0.35;
+  var istenen = b.boy * 0.95;
+  var yon = (uz > istenen) ? 1 : -0.6;
+  b.vx += ((dx / uz) * hiz * yon - b.vx) * 0.05;
+  b.vy += ((dy / uz) * hiz * yon - b.vy) * 0.05;
+  b.x += b.vx; b.y += b.vy;
+  var kenar = b.boy * 0.42;
+  if (b.x < kenar) { b.x = kenar; b.vx = 0; }
+  if (b.x > GENISLIK - kenar) { b.x = GENISLIK - kenar; b.vx = 0; }
+  if (b.y < kenar) { b.y = kenar; b.vy = 0; }
+  if (b.y > YUKSEKLIK - kenar) { b.y = YUKSEKLIK - kenar; b.vy = 0; }
+  b.kuyrukAci *= 0.90;
+
+  b.bekle--;
+  if (b.bekle <= 0 && uz < bossMenzil() * 1.35) {
+    b.hazirlik = Math.max(24, 48 - b.sira * 8);
+    b.hazirlikMax = b.hazirlik;
+  }
+}
+
+// ---- ÇAKRA TOPU (X) ----
+function topAt() {
+  var hedefX, hedefY;
+  if (boss) { hedefX = boss.x; hedefY = boss.y; }                 // boss varsa kendiliğinden nişan alır
+  else if (meteorlar.length > 0) {
+    var enYakin = meteorlar[0], enUz = 1e9;
+    for (var i = 0; i < meteorlar.length; i++) {
+      var mm = meteorlar[i];
+      var d = (mm.x - kedi.x) * (mm.x - kedi.x) + (mm.y - kedi.y) * (mm.y - kedi.y);
+      if (d < enUz) { enUz = d; enYakin = mm; }
+    }
+    hedefX = enYakin.x; hedefY = enYakin.y;
+  } else { hedefX = kedi.x + (kedi.bakisX || 0) * 200; hedefY = kedi.y - 200; }
+
+  var dx = hedefX - kedi.x, dy = hedefY - kedi.y;
+  var uz = Math.sqrt(dx * dx + dy * dy) || 1;
+  topler.push({ x: kedi.x, y: kedi.y, vx: (dx / uz) * TOP_HIZI, vy: (dy / uz) * TOP_HIZI,
+                omur: 130, faz: Math.random() * 6.28 });
+  topBekleme = TOP_BEKLE;
+  kediyiEz(0.14);
+  sesTopAt();
+}
+
+function toplariGuncelle() {
+  for (var i = topler.length - 1; i >= 0; i--) {
+    var t = topler[i];
+    t.x += t.vx; t.y += t.vy; t.omur--; t.faz += 0.3;
+    var gitti = false;
+
+    if (boss && boss.durum === "dovus") {
+      var bdx = t.x - boss.x, bdy = t.y - boss.y;
+      if (Math.sqrt(bdx * bdx + bdy * bdy) < boss.boy * 0.42 + 10) {
+        bossaHasar(TOP_HASAR);
+        halkalar.push({ x: t.x, y: t.y, r: 5, maxR: 60, omur: 20, maxOmur: 20, renk: "#6fd8ff" });
+        gitti = true;
+      }
+    }
+    if (!gitti) {                                   // meteorları da patlatır
+      for (var m = meteorlar.length - 1; m >= 0; m--) {
+        var me = meteorlar[m];
+        var mdx = t.x - me.x, mdy = t.y - me.y;
+        if (Math.sqrt(mdx * mdx + mdy * mdy) < me.boy + 8) {
+          meteorPatlat(me); sesPatlama();
+          meteorlar.splice(m, 1);
+          gitti = true;
+          break;
+        }
+      }
+    }
+    if (gitti || t.omur <= 0 || t.x < -60 || t.x > GENISLIK + 60 || t.y < -60 || t.y > YUKSEKLIK + 60) {
+      topler.splice(i, 1);
+    }
+  }
+}
+
+function toplariCiz() {
+  for (var i = 0; i < topler.length; i++) {
+    var t = topler[i];
+    var buyuk = 11 + Math.sin(t.faz) * 1.8;
+    var g = ctx.createRadialGradient(t.x, t.y, 1, t.x, t.y, buyuk * 2.1);
+    g.addColorStop(0, "rgba(255,255,255,0.95)");
+    g.addColorStop(0.35, "rgba(111,216,255,0.85)");
+    g.addColorStop(1, "rgba(60,140,255,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(t.x, t.y, buyuk * 2.1, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = "#eaffff";
+    ctx.beginPath(); ctx.arc(t.x, t.y, buyuk * 0.42, 0, 6.2832); ctx.fill();
+  }
+}
+
+// ---- KEDİNİN KUYRUK SAVURMASI (C) ----
+function kuyrukSavurBasla() {
+  kuyrukSaldiri = 22;
+  kuyrukBekleme = KUYRUK_BEKLE;
+  kediyiEz(0.18);
+  sesKuyrukSavur();
+}
+
+function kuyrukVurusu() {
+  var menzil = KUYRUK_MENZIL;
+  halkalar.push({ x: kedi.x, y: kedi.y, r: 8, maxR: menzil, omur: 20, maxOmur: 20, renk: "#ffd84d" });
+  if (boss && boss.durum === "dovus") {
+    var dx = boss.x - kedi.x, dy = boss.y - kedi.y;
+    if (Math.sqrt(dx * dx + dy * dy) < menzil + boss.boy * 0.42) bossaHasar(KUYRUK_HASAR);
+  }
+  for (var m = meteorlar.length - 1; m >= 0; m--) {
+    var me = meteorlar[m];
+    var mdx = me.x - kedi.x, mdy = me.y - kedi.y;
+    if (Math.sqrt(mdx * mdx + mdy * mdy) < menzil) {
+      meteorPatlat(me); sesPatlama();
+      meteorlar.splice(m, 1);
+    }
+  }
+}
+
+// ---- BOSS ÇİZİMİ ----
+function bossKuyruklariCiz(r, savurAci, renk1, renk2) {
+  var adet = 9;
+  var yayilim = Math.PI * 1.30;
+  var tabanY = r * 0.42;
+  for (var i = 0; i < adet; i++) {
+    var t = i / (adet - 1);
+    var a = -yayilim / 2 + yayilim * t + Math.sin(sayac * 0.045 + i * 0.7) * 0.13 + savurAci;
+    var uzunluk = r * (2.55 + Math.sin(sayac * 0.04 + i) * 0.12);
+    var ucX = Math.sin(a) * uzunluk;
+    var ucY = tabanY - Math.cos(a) * uzunluk * 0.86;
+    var kontrolX = Math.sin(a) * uzunluk * 0.24;
+    var kontrolY = tabanY - Math.cos(a) * uzunluk * 0.28 + r * 0.24;
+    for (var j = 0; j <= 20; j++) {
+      var u = j / 20, tersU = 1 - u;
+      var px = 2 * tersU * u * kontrolX + u * u * ucX;
+      var py = tersU * tersU * tabanY + 2 * tersU * u * kontrolY + u * u * ucY;
+      ctx.shadowColor = renk2; ctx.shadowBlur = 14;
+      ctx.fillStyle = u > 0.6 ? renk2 : renk1;
+      ctx.beginPath(); ctx.arc(px, py, r * (0.16 - 0.10 * u), 0, 6.2832); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+  }
+}
+
+function rinneganCiz(x, y, r) {
+  ctx.fillStyle = "#c8b4ee";
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
+  ctx.strokeStyle = "#5a3f8c"; ctx.lineWidth = Math.max(1, r * 0.16);
+  for (var h = 1; h <= 3; h++) {
+    ctx.beginPath(); ctx.arc(x, y, r * (h / 3.6), 0, 6.2832); ctx.stroke();
+  }
+  ctx.fillStyle = "#2c1c4a";
+  ctx.beginPath(); ctx.arc(x, y, r * 0.16, 0, 6.2832); ctx.fill();
+}
+
+function sharinganCiz(x, y, r) {
+  ctx.fillStyle = "#e63a3a";
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = "#2a0808";
+  ctx.beginPath(); ctx.arc(x, y, r * 0.26, 0, 6.2832); ctx.fill();
+  for (var t = 0; t < 3; t++) {
+    var a = sayac * 0.06 + t * 2.094;
+    var tx = x + Math.cos(a) * r * 0.55, ty = y + Math.sin(a) * r * 0.55;
+    ctx.beginPath(); ctx.arc(tx, ty, r * 0.17, 0, 6.2832); ctx.fill();
+  }
+}
+
+function bossuCiz() {
+  var b = boss;
+  var r = b.boy / 2;
+  var bilgi = b.bilgi;
+
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  if (b.durum === "olum") {
+    ctx.globalAlpha = Math.max(0, b.olumSayac / 100);
+    ctx.rotate((1 - b.olumSayac / 100) * 0.7);
+  }
+  if (b.durum === "giris") ctx.globalAlpha = Math.min(1, (110 - b.girisSayac) / 40);
+  ctx.scale(1 + b.ezilme, 1 - b.ezilme);
+
+  // aura
+  var aur = ctx.createRadialGradient(0, 0, r * 0.4, 0, 0, r * 2.3);
+  aur.addColorStop(0, bilgi.aura + "66");
+  aur.addColorStop(0.55, bilgi.aura + "22");
+  aur.addColorStop(1, bilgi.aura + "00");
+  ctx.fillStyle = aur;
+  ctx.beginPath(); ctx.arc(0, 0, r * 2.3, 0, 6.2832); ctx.fill();
+
+  // 9 kuyruk (gövdenin arkasında)
+  bossKuyruklariCiz(r, b.kuyrukAci, bilgi.koyu, bilgi.aura);
+
+  // gövde
+  var vur = b.vuruldu > 0 && b.vuruldu % 4 < 2;
+  var govde = ctx.createLinearGradient(0, -r * 0.9, 0, r * 0.9);
+  govde.addColorStop(0, vur ? "#ffffff" : bilgi.ten);
+  govde.addColorStop(1, vur ? "#ffd9d9" : bilgi.koyu);
+  ctx.fillStyle = govde;
+  ctx.beginPath(); ctx.ellipse(0, r * 0.14, r * 0.80, r * 0.74, 0, 0, 6.2832); ctx.fill();
+
+  // kulaklar
+  ctx.fillStyle = vur ? "#ffffff" : bilgi.koyu;
+  for (var k = -1; k <= 1; k += 2) {
+    ctx.beginPath();
+    ctx.moveTo(k * r * 0.34, -r * 0.62);
+    ctx.lineTo(k * r * 0.62, -r * 1.10);
+    ctx.lineTo(k * r * 0.70, -r * 0.48);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // saç (dikenli)
+  ctx.fillStyle = bilgi.sac;
+  for (var d = -4; d <= 4; d++) {
+    var sx = d * r * 0.17;
+    var boyu = r * (0.42 + Math.abs(Math.sin(d * 1.3)) * 0.30);
+    ctx.beginPath();
+    ctx.moveTo(sx - r * 0.11, -r * 0.52);
+    ctx.lineTo(sx + Math.sin(sayac * 0.03 + d) * r * 0.05, -r * 0.52 - boyu);
+    ctx.lineTo(sx + r * 0.11, -r * 0.52);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // gözler
+  var gozR = r * 0.155;
+  if (bilgi.goz === "rinnegan") {
+    rinneganCiz(-r * 0.26, -r * 0.16, gozR);
+    rinneganCiz( r * 0.26, -r * 0.16, gozR);
+  } else {
+    sharinganCiz(-r * 0.26, -r * 0.16, gozR);
+    sharinganCiz( r * 0.26, -r * 0.16, gozR);
+  }
+  ctx.shadowColor = bilgi.aura; ctx.shadowBlur = 18;
+  ctx.strokeStyle = bilgi.aura; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.arc(-r * 0.26, -r * 0.16, gozR + 1.5, 0, 6.2832); ctx.stroke();
+  ctx.beginPath(); ctx.arc( r * 0.26, -r * 0.16, gozR + 1.5, 0, 6.2832); ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // ağız + dişler
+  var agizAcik = (b.hazirlik > 0 || b.savurma > 0) ? 1 : 0.35;
+  ctx.fillStyle = "#2a0f12";
+  ctx.beginPath();
+  ctx.ellipse(0, r * 0.30, r * 0.30, r * 0.10 + r * 0.16 * agizAcik, 0, 0, 6.2832);
+  ctx.fill();
+  ctx.fillStyle = "#fff6ea";
+  for (var f = -1; f <= 1; f += 2) {
+    ctx.beginPath();
+    ctx.moveTo(f * r * 0.17, r * 0.22);
+    ctx.lineTo(f * r * 0.23, r * 0.22 + r * 0.16 * agizAcik);
+    ctx.lineTo(f * r * 0.11, r * 0.22);
+    ctx.closePath(); ctx.fill();
+  }
+
+  ctx.restore();
+
+  // hazırlanma uyarısı — kırmızı halka: bu daireden çık!
+  if (b.hazirlik > 0) {
+    var o = 1 - b.hazirlik / Math.max(1, b.hazirlikMax || b.hazirlik);
+    ctx.save();
+    ctx.globalAlpha = 0.30 + Math.sin(sayac * 0.4) * 0.22;
+    ctx.strokeStyle = "#ff4d4d";
+    ctx.lineWidth = 4;
+    ctx.setLineDash([12, 10]);
+    ctx.beginPath(); ctx.arc(b.x, b.y, bossMenzil(), 0, 6.2832); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = "#ff4d4d";
+    ctx.beginPath(); ctx.arc(b.x, b.y, bossMenzil() * Math.max(0, Math.min(1, o + 0.2)), 0, 6.2832); ctx.fill();
+    ctx.restore();
+  }
+
+  // isim — sadece boss ekranın alt yarısındayken (üstteki can çubuğuyla çakışmasın)
+  if (b.durum !== "olum" && b.y - r * 1.35 > 110) {
+    ctx.textAlign = "center";
+    ctx.font = "700 15px " + BASLIK_FONT;
+    ctx.fillStyle = bilgi.aura;
+    ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 6;
+    ctx.fillText(bilgi.ad, b.x, b.y - r * 1.35);
+    ctx.shadowBlur = 0;
+  }
+}
+
+function bossCanCubuguCiz() {
+  var b = boss;
+  var g = 280, x = GENISLIK / 2 - g / 2, y = 16;
+  camPanel(x, y, g, 56, 16, b.bilgi.aura + "99");
+  ctx.textAlign = "center";
+  ctx.font = "700 16px " + BASLIK_FONT;
+  ctx.fillStyle = b.bilgi.aura;
+  ctx.fillText("BOSS  ·  " + b.bilgi.ad, GENISLIK / 2, y + 24);
+
+  var kutuG = (g - 40) / b.maxCan;
+  for (var i = 0; i < b.maxCan; i++) {
+    var kx = x + 20 + i * kutuG;
+    ctx.fillStyle = i < b.can ? b.bilgi.aura : "rgba(255,255,255,0.13)";
+    yuvarlakKutu(kx + 1, y + 34, Math.max(3, kutuG - 3), 12, 3); ctx.fill();
+  }
+  ctx.textAlign = "center";
+  ctx.font = "800 11px " + YAZI_FONT;
+  ctx.fillStyle = "#ffffff88";
+  ctx.fillText(b.can + " / " + b.maxCan, GENISLIK / 2, y + 62);
+}
+
+function saldiriCubuklariniCiz() {
+  var y = YUKSEKLIK - 74;
+  var veriler = [
+    { tus: "X", ad: "çakra topu", bekle: topBekleme, en: TOP_BEKLE, renk: "#6fd8ff" },
+    { tus: "C", ad: "kuyruk savur", bekle: kuyrukBekleme, en: KUYRUK_BEKLE, renk: "#ffd84d" }
+  ];
+  for (var i = 0; i < veriler.length; i++) {
+    var v = veriler[i];
+    var x = 24 + i * 132;
+    var oran = 1 - Math.max(0, v.bekle) / v.en;
+    camPanel(x, y, 124, 44, 12, oran >= 1 ? v.renk + "aa" : "#ffffff22");
+    ctx.globalAlpha = 0.30;
+    ctx.fillStyle = v.renk;
+    yuvarlakKutu(x, y, 124 * oran, 44, 12); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.textAlign = "left";
+    ctx.font = "700 19px " + BASLIK_FONT;
+    ctx.fillStyle = oran >= 1 ? v.renk : "#ffffff55";
+    ctx.fillText(v.tus, x + 12, y + 29);
+    ctx.font = "800 11px " + YAZI_FONT;
+    ctx.fillStyle = "#ffffff88";
+    ctx.fillText(v.ad, x + 34, y + 27);
+  }
+}
+
+
+// ===========================================================
+//   OYUN DÖNGÜSÜ
+// ===========================================================
+function oyunDongusu() {
+  sayac++;
+  var r = KEDI_BOYU / 2;
+  var carpismaR = r * CARPISMA_ORANI;
+  var donuyor = donma > 0;
+  if (donuyor) donma--;
+
+  if (kedi) {
+    kedi.kirpSayaci--;
+    if (kedi.kirpSayaci <= 0) { kedi.gozKirp = 7; kedi.kirpSayaci = 110 + Math.floor(Math.random() * 140); }
+    if (kedi.gozKirp > 0) kedi.gozKirp--;
+    kedi.ezilmeHiz += -kedi.ezilme * 0.28;
+    kedi.ezilmeHiz *= 0.80;
+    kedi.ezilme += kedi.ezilmeHiz;
+  }
+
+  if (durum === "oyun" && !donuyor) {
+    sure++;
+    if (dokunulmaz > 0) dokunulmaz--;
+
+    // DOKUZ KUYRUK MODU sayacı
+    if (evrimSayac > 0) {
+      evrimSayac--;
+      if (evrimSayac === 0) {
+        can = EVRIM_SONRASI;
+        sesEvrimBit();
+        yazilar.push({ x: kedi.x, y: kedi.y - 110, omur: 60, metin: "mod bitti", renk: "#ffffff", boy: 20 });
+      }
+    }
+
+    // BÖLÜM  (boss dövüşürken bölüm ilerlemez)
+    if (!boss) bolumSayac++;
+    var yeniBolum = 1 + Math.floor(bolumSayac / BOLUM_SURESI);
+    if (yeniBolum > bolum) {
+      bolum = yeniBolum; bolumYazi = 100; sesBolum();
+      ekranParlama = 0.30; sarsinti = 8 * SARSINTI_GUCU;
+      if (bolum > enYuksekBolum) { enYuksekBolum = bolum; kaydet(); }
+    }
+
+    // HAREKET — her yöne
+    var gx = 0, gy = 0;
+    if (tuslar["ArrowLeft"]  || tuslar["a"] || tuslar["A"]) gx -= 1;
+    if (tuslar["ArrowRight"] || tuslar["d"] || tuslar["D"]) gx += 1;
+    if (tuslar["ArrowUp"]    || tuslar["w"] || tuslar["W"]) gy -= 1;
+    if (tuslar["ArrowDown"]  || tuslar["s"] || tuslar["S"]) gy += 1;
+    if (gx !== 0 && gy !== 0) { gx *= 0.707; gy *= 0.707; }   // çapraz da aynı hızda olsun
+
+    kedi.vx += (gx * KEDI_HIZI - kedi.vx) * 0.28;
+    kedi.vy += (gy * KEDI_HIZI - kedi.vy) * 0.28;
+    kedi.x += kedi.vx;
+    kedi.y += kedi.vy;
+
+    var pay = r * 0.55;
+    if (kedi.x < pay) { kedi.x = pay; kedi.vx = 0; }
+    if (kedi.x > GENISLIK - pay) { kedi.x = GENISLIK - pay; kedi.vx = 0; }
+    if (kedi.y < pay + 20) { kedi.y = pay + 20; kedi.vy = 0; }
+    if (kedi.y > YUKSEKLIK - pay) { kedi.y = YUKSEKLIK - pay; kedi.vy = 0; }
+
+    kedi.egim += (Math.max(-1, Math.min(1, kedi.vx / 6)) * 0.24 - kedi.egim) * 0.16;
+    kedi.bakisX += (Math.max(-1, Math.min(1, kedi.vx / 4)) - kedi.bakisX) * 0.18;
+    kedi.bakisY += (Math.max(-1, Math.min(1, kedi.vy / 4)) - kedi.bakisY) * 0.18;
+
+    // çakra izi
+    kedi.iz.push({ x: kedi.x, y: kedi.y + r * 0.5 });
+    if (kedi.iz.length > 9) kedi.iz.shift();
+
+    // ÜRETİM
+    if ((!boss || BOSS_METEOR_DEVAM) && sayac % meteorSikligi() === 0) meteorUret();
+    if (sayac % CAKRA_SIKLIGI === 0) cakraUret();
+
+    // BOSS ZAMANI GELDİ Mİ?
+    if (!boss && sonrakiBoss < BOSS_BOLUMLERI.length && bolum >= BOSS_BOLUMLERI[sonrakiBoss]) {
+      bossCagir(sonrakiBoss);
+      sonrakiBoss++;
+    }
+
+    // METEORLAR
+    for (var i = meteorlar.length - 1; i >= 0; i--) {
+      var m = meteorlar[i];
+      m.x += m.vx; m.y += m.vy; m.aci += m.donus;
+
+      var dx = m.x - kedi.x, dy = m.y - kedi.y;
+      var mesafe = Math.sqrt(dx * dx + dy * dy);
+
+      if (mesafe < carpismaR + m.boy * 0.75) {
+        if (dokuzKuyrukModu()) {                     // modda meteorlar patlıyor!
+          meteorPatlat(m); sesPatlama();
+          sarsinti = 6 * SARSINTI_GUCU;
+          meteorlar.splice(i, 1);
+          continue;
+        }
+        if (dokunulmaz <= 0) {
+          can--;
+          dokunulmaz = DOKUNULMAZLIK;
+          kediyiEz(-0.28);
+          sarsinti = 16 * SARSINTI_GUCU;
+          donma = DONMA_KARE;
+          sesCarpma();
+          meteorPatlat(m);
+          yazilar.push({ x: kedi.x, y: kedi.y - 100, omur: 55, metin: "-1 KUYRUK", renk: "#ff5a5a", boy: 23 });
+          for (var dk = 0; dk < 22; dk++) {
+            parcaciklar.push({
+              x: kedi.x + (Math.random() - 0.5) * KEDI_BOYU, y: kedi.y + KEDI_BOYU * 0.5,
+              vx: (Math.random() - 0.5) * 5, vy: -Math.random() * 3 - 0.5,
+              omur: 40, renk: "#b9a8d8", boy: 2 + Math.random() * 3
+            });
+          }
+          meteorlar.splice(i, 1);
+          if (can <= 0) oyunBitti();
+          continue;
+        }
+      }
+
+      if (m.x < -120 || m.x > GENISLIK + 120 || m.y < -120 || m.y > YUKSEKLIK + 120) {
+        meteorlar.splice(i, 1);
+      }
+    }
+
+    // ÇAKRA KÜRELERİ
+    for (var c2 = cakralar.length - 1; c2 >= 0; c2--) {
+      var ck = cakralar[c2];
+      ck.omur--;
+      var cdx = ck.x - kedi.x, cdy = ck.y - kedi.y;
+      var cmes = Math.sqrt(cdx * cdx + cdy * cdy);
+
+      // kedi yaklaşınca ağzını açsın
+      if (cmes < 170) kedi.agizHedef = Math.max(kedi.agizHedef, 1 - cmes / 170);
+
+      if (cmes < r * 0.85 + 15) {
+        var eskiCan = can;
+        can++;
+        if (can > EN_COK_KUYRUK) can = EN_COK_KUYRUK;
+        if (can > enCokKuyruk) { enCokKuyruk = can; }
+        kediyiEz(EZILME_GUCU);
+        sesCakra();
+        halkalar.push({ x: ck.x, y: ck.y, r: 6, maxR: 80, omur: 26, maxOmur: 26, renk: "#6fd8ff" });
+        for (var cp = 0; cp < 16; cp++) {
+          parcaciklar.push({
+            x: ck.x, y: ck.y,
+            vx: (Math.random() - 0.5) * 7, vy: (Math.random() - 0.5) * 7,
+            omur: 32, renk: "#6fd8ff", boy: 1.5 + Math.random() * 2.5
+          });
+        }
+        yazilar.push({ x: ck.x, y: ck.y, omur: 50,
+                       metin: can > eskiCan ? "+1 KUYRUK" : "kuyruk dolu!", renk: "#6fd8ff", boy: 21 });
+        cakralar.splice(c2, 1);
+
+        // DOKUZ KUYRUK MODU!
+        if (can >= EVRIM_KUYRUK && evrimSayac === 0) {
+          evrimSayac = EVRIM_SURESI;
+          evrimGecti = true;
+          evrimSayisi++;
+          evrimYazi = 120;
+          sarsinti = 20 * SARSINTI_GUCU; donma = DONMA_KARE + 4; ekranParlama = 0.55;
+          sesEvrim(); kaydet();
+          for (var e = 0; e < 70; e++) {
+            parcaciklar.push({
+              x: kedi.x, y: kedi.y,
+              vx: (Math.random() - 0.5) * 15, vy: (Math.random() - 0.5) * 15,
+              omur: 55, renk: "#ffd84d", boy: 2 + Math.random() * 3
+            });
+          }
+          halkalar.push({ x: kedi.x, y: kedi.y, r: 20, maxR: 340, omur: 45, maxOmur: 45, renk: "#ffd84d" });
+        }
+        continue;
+      }
+      if (ck.omur <= 0) cakralar.splice(c2, 1);
+    }
+
+    // ---- SALDIRILAR ve BOSS ----
+    if (topBekleme > 0) topBekleme--;
+    if (kuyrukBekleme > 0) kuyrukBekleme--;
+    if (kuyrukSaldiri > 0) { kuyrukSaldiri--; if (kuyrukSaldiri === 16) kuyrukVurusu(); }
+    if ((tuslar["x"] || tuslar["X"]) && topBekleme <= 0) topAt();
+    if ((tuslar["c"] || tuslar["C"]) && kuyrukBekleme <= 0 && kuyrukSaldiri <= 0) kuyrukSavurBasla();
+    toplariGuncelle();
+    if (boss) bossGuncelle();
+    if (boss) kedi.agizHedef = Math.max(kedi.agizHedef, 0.45);   // boss'a karşı dişlerini gösterir
+
+    kedi.agiz += (kedi.agizHedef - kedi.agiz) * 0.22;
+    kedi.agizHedef *= 0.86;
+  }
+
+  // parçacıklar / halkalar / yazılar
+  if (!donuyor) {
+    for (var j = parcaciklar.length - 1; j >= 0; j--) {
+      var pa = parcaciklar[j];
+      pa.x += pa.vx; pa.y += pa.vy; pa.vy += 0.16; pa.vx *= 0.99; pa.omur--;
+      if (pa.omur <= 0) parcaciklar.splice(j, 1);
+    }
+    for (var h = halkalar.length - 1; h >= 0; h--) {
+      var ha = halkalar[h];
+      ha.omur--;
+      ha.r = 6 + (ha.maxR - 6) * yumusakCikis(1 - ha.omur / ha.maxOmur);
+      if (ha.omur <= 0) halkalar.splice(h, 1);
+    }
+    for (var t2 = yazilar.length - 1; t2 >= 0; t2--) {
+      yazilar[t2].y -= 1.15; yazilar[t2].omur--;
+      if (yazilar[t2].omur <= 0) yazilar.splice(t2, 1);
+    }
+    if (bolumYazi > 0) bolumYazi--;
+    if (evrimYazi > 0) evrimYazi--;
+    if (bossYazi > 0) bossYazi--;
+    if (kayitYazi > 0) kayitYazi--;
+    if (sarsinti > 0.3) sarsinti *= 0.90; else sarsinti = 0;
+    if (ekranParlama > 0.004) ekranParlama *= 0.86; else ekranParlama = 0;
+  }
+
+  // ---------- ÇİZ ----------
+  ctx.save();
+  if (sarsinti > 0) {
+    ctx.translate((Math.random() - 0.5) * sarsinti, (Math.random() - 0.5) * sarsinti);
+    ctx.rotate((Math.random() - 0.5) * sarsinti * 0.0008);
+  }
+
+  arkaPlaniCiz();
+
+  if (durum !== "menu") {
+    // kedinin çakra izi
+    for (var q = 0; q < kedi.iz.length; q++) {
+      ctx.globalAlpha = (q / kedi.iz.length) * 0.20;
+      ctx.fillStyle = dokuzKuyrukModu() ? "#ffb347" : "#9ad4ff";
+      ctx.beginPath();
+      ctx.arc(kedi.iz[q].x, kedi.iz[q].y, (KEDI_BOYU * 0.30) * (q / kedi.iz.length), 0, 6.2832);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    for (var c3 = 0; c3 < cakralar.length; c3++) cakraCiz(cakralar[c3]);
+    for (var i2 = 0; i2 < meteorlar.length; i2++) meteorCiz(meteorlar[i2]);
+
+    for (var h2 = 0; h2 < halkalar.length; h2++) {
+      var hh = halkalar[h2];
+      ctx.globalAlpha = Math.max(0, hh.omur / hh.maxOmur) * 0.85;
+      ctx.strokeStyle = hh.renk;
+      ctx.lineWidth = 3 * (hh.omur / hh.maxOmur) + 0.5;
+      ctx.beginPath(); ctx.arc(hh.x, hh.y, hh.r, 0, 6.2832); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    for (var j2 = 0; j2 < parcaciklar.length; j2++) {
+      var pp = parcaciklar[j2];
+      ctx.globalAlpha = Math.min(1, pp.omur / 40);
+      ctx.fillStyle = pp.renk;
+      ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.boy || 3, 0, 6.2832); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    if (boss) bossuCiz();
+    toplariCiz();
+
+    kediyiCiz();
+
+    ctx.textAlign = "center";
+    for (var t3 = 0; t3 < yazilar.length; t3++) {
+      var yz = yazilar[t3];
+      ctx.globalAlpha = Math.min(1, yz.omur / 30);
+      ctx.font = "600 " + (yz.boy || 20) + "px " + BASLIK_FONT;
+      ctx.fillStyle = yz.renk;
+      ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 6;
+      ctx.fillText(yz.metin, yz.x, yz.y);
+      ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  vinyetCiz();
+
+  if (ekranParlama > 0) {
+    ctx.fillStyle = "rgba(255,240,200," + ekranParlama.toFixed(3) + ")";
+    ctx.fillRect(-60, -60, GENISLIK + 120, YUKSEKLIK + 120);
+  }
+
+  if (durum === "oyun" || durum === "duraklat" || durum === "bitti") bilgileriCiz();
+  if (durum === "menu")     menuyuCiz();
+  if (durum === "duraklat") duraklatEkraniniCiz();
+  if (durum === "bitti")    bittiEkraniniCiz();
+
+  ctx.restore();
+  requestAnimationFrame(oyunDongusu);
+}
+
+oyunuBaslat();
+durum = "menu";
+oyunDongusu();
+</script>
+
+</body>
+</html>

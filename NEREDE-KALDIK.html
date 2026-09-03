@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kedi Oyunu Görev Defteri</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap">
+<style>
+  :root {
+    --uzay:      #14102b;
+    --uzay-2:    #1d1740;
+    --uzay-3:    #262052;
+    --cizgi:     #362d6e;
+    --yildiz:    #ffd75e;
+    --kedi:      #ff9f4d;
+    --tamam:     #63d9a0;
+    --mor:       #a98bff;
+    --yazi:      #efe9ff;
+    --yazi-soluk:#a79ecb;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--uzay);
+    color: var(--yazi);
+    font-family: "Nunito", "Segoe UI", system-ui, sans-serif;
+    font-size: 1.02rem;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sayfa { max-width: 700px; margin: 0 auto; padding: 0 20px 70px; }
+
+  /* ---------- BAŞLIK ---------- */
+  .tepe { position: relative; padding: 52px 20px 30px; overflow: hidden; }
+  #yildizTuvali { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+  .tepe-ic { position: relative; max-width: 700px; margin: 0 auto; }
+
+  .etiket {
+    font-size: .72rem; font-weight: 800; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--mor); margin: 0 0 12px;
+  }
+  h1 {
+    font-family: "Fredoka", "Trebuchet MS", sans-serif; font-weight: 700;
+    font-size: clamp(2rem, 1.3rem + 3.4vw, 3rem);
+    line-height: 1.05; margin: 0; text-wrap: balance; color: var(--yildiz);
+  }
+  h1 .ikinci { color: var(--kedi); display: block; }
+
+  .durum {
+    display: flex; align-items: center; gap: 14px;
+    margin: 26px 0 0; padding: 15px 20px;
+    background: linear-gradient(135deg, #1f2f2a, #1a2440);
+    border: 2px solid var(--tamam); border-radius: 16px;
+  }
+  .durum-tik {
+    width: 38px; height: 38px; flex: none; border-radius: 50%;
+    background: var(--tamam); color: #0d2018;
+    display: grid; place-items: center; font-size: 1.3rem; font-weight: 800;
+  }
+  .durum strong {
+    font-family: "Fredoka", sans-serif; font-size: 1.1rem;
+    color: var(--tamam); font-weight: 600;
+  }
+
+  /* ---------- BÖLÜMLER ---------- */
+  h2 {
+    font-family: "Fredoka", sans-serif; font-weight: 600;
+    font-size: 1.4rem; color: var(--yildiz);
+    margin: 48px 0 16px; text-wrap: balance;
+  }
+
+  /* tek satırlık madde listesi */
+  .liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+  .liste li {
+    display: grid; grid-template-columns: 26px 1fr; gap: 12px; align-items: start;
+    padding: 9px 14px;
+    background: var(--uzay-2); border: 1px solid var(--cizgi); border-radius: 11px;
+  }
+  .im {
+    font-family: "Fredoka", sans-serif; font-weight: 600; font-size: .86rem;
+    color: var(--mor); text-align: center; font-variant-numeric: tabular-nums;
+    line-height: 1.6;
+  }
+  .liste b { color: #fff; font-weight: 800; }
+
+  /* rozetler */
+  .rozetler { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .rozet {
+    padding: 7px 13px; border-radius: 999px;
+    background: var(--uzay-2); border: 1px solid var(--cizgi);
+    font-size: .87rem; font-weight: 600;
+  }
+
+  /* merdiven */
+  .merdiven { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .basamak {
+    display: grid; grid-template-columns: 34px 1fr; gap: 14px; align-items: center;
+    padding: 11px 14px; border-radius: 11px;
+    background: var(--uzay-2); border: 1px solid var(--cizgi);
+  }
+  .nokta {
+    width: 34px; height: 34px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: "Fredoka", sans-serif; font-weight: 600; font-size: .95rem;
+    background: var(--uzay-3); color: var(--yazi-soluk);
+  }
+  .basamak.bitti { border-color: var(--tamam); }
+  .basamak.bitti .nokta { background: var(--tamam); color: #0d2018; }
+  .basamak.bitti b { color: var(--tamam); }
+  .basamak.sirada { border-color: var(--kedi); }
+  .basamak.sirada .nokta { background: var(--kedi); color: #2b1400; }
+  .basamak.sirada b { color: var(--kedi); }
+  .basamak b { font-weight: 800; }
+  .basamak span { color: var(--yazi-soluk); font-size: .92rem; }
+
+  /* konuş kutusu */
+  .konus {
+    background: var(--uzay-3); border: 2px dashed var(--mor);
+    border-radius: 14px; padding: 16px 20px; margin-top: 14px;
+  }
+  .konus ul { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; }
+
+  /* tuşlar */
+  .tuslar { display: flex; flex-wrap: wrap; gap: 9px; list-style: none; margin: 0; padding: 0; }
+  .tuslar li {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--uzay-2); border: 1px solid var(--cizgi);
+    padding: 7px 13px 7px 7px; border-radius: 10px;
+    font-size: .88rem; color: var(--yazi-soluk);
+  }
+  kbd {
+    background: var(--uzay-3); border: 1px solid var(--mor); border-bottom-width: 3px;
+    border-radius: 6px; padding: 3px 9px;
+    font-family: "Nunito", sans-serif; font-weight: 800; font-size: .84rem; color: var(--yazi);
+  }
+
+  .son {
+    margin-top: 48px; padding-top: 22px; border-top: 1px solid var(--cizgi);
+    color: var(--yazi-soluk); font-size: .92rem; text-align: center;
+  }
+  .son b { color: var(--kedi); }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  @media (max-width: 520px) {
+    .liste li { grid-template-columns: 22px 1fr; gap: 9px; }
+  }
+</style>
+</head>
+<body>
+
+
+<header class="tepe">
+  <canvas id="yildizTuvali" aria-hidden="true"></canvas>
+  <div class="tepe-ic">
+    <p class="etiket">Görev defteri &middot; 3 Eylül 2026</p>
+    <h1>Kedi Oyunu<span class="ikinci">Görev Defteri</span></h1>
+
+    <div class="durum">
+      <div class="durum-tik" aria-hidden="true">&#10003;</div>
+      <div><strong>2 oyun bitti &mdash; ve BOSS'lar geldi! Pain &middot; Madara &middot; Nagato</strong></div>
+    </div>
+  </div>
+</header>
+
+<main class="sayfa">
+
+  <h2>Ne yaptık?</h2>
+  <ul class="liste">
+    <li><span class="im">1</span><div><b>Plan:</b> 5 küçük oyun yapıp Level Devil'a çıkacağız.</div></li>
+    <li><span class="im">2</span><div><b>Oyunu sen tasarladın:</b> yıldız yakalayan bir kedi.</div></li>
+    <li><span class="im">3</span><div><b>3 obje:</b> yıldız = puan, sağlam kuyruk = can, çürük kuyruk = can gider.</div></li>
+    <li><span class="im">4</span><div><b>Kuyruğun biterse ölürsün</b> &mdash; can yerine kuyruk sayıyoruz.</div></li>
+    <li><span class="im">5</span><div><b>Kedi canlandı:</b> kafasını kaldırır, dilini yalar, çürük et yiyince iğrenir.</div></li>
+    <li><span class="im">6</span><div><b>Kayıt:</b> bilgisayarı kapatsan bile rekorun durur.</div></li>
+    <li><span class="im">7</span><div><b>Büyük güncelleme:</b> sesler, güçlendirmeler, kombo, bölümler, menü.</div></li>
+    <li><span class="im">8</span><div><b>BOŞLUK ile duraklat</b> &mdash; oyunu durdurup devam edebilirsin.</div></li>
+    <li><span class="im">9</span><div><b>Yapımcılar yazıldı:</b> Uraz Buday &middot; Çağlar Buday.</div></li>
+    <li><span class="im">10</span><div><b>Modern görünüm</b> ve <b>F ile tam ekran</b> eklendi.</div></li>
+    <li><span class="im">11</span><div><b>Kuyruk = can!</b> Naruto'daki gibi: 3 kuyrukla başlarsın, et yiyince kuyruk çıkar.</div></li>
+    <li><span class="im">12</span><div><b>9 kuyrukta DOKUZ KUYRUK MODU</b> &mdash; çakra aurası, altın alevli kuyruklar, kırmızı gözler.</div></li>
+    <li><span class="im">13</span><div><b>Kediye Naruto bandanası</b> takıldı (metal plaka + sarmal simge).</div></li>
+    <li><span class="im">14</span><div><b>İki arka plan:</b> Naruto dünyası ve pis mutfak masası &mdash; <b>B</b> tuşuyla anında değiştir.</div></li>
+    <li><span class="im">15</span><div><b>2. OYUN BİTTİ:</b> Meteordan Kaçan Kedi &mdash; Naruto dünyasında geçiyor.</div></li>
+    <li><span class="im">16</span><div><b>Havadan artık KUYRUK düşüyor</b> (senin fikrin) &mdash; et yerine kuyruk. <b>K</b> tuşuyla eskisine dönebilirsin.</div></li>
+    <li><span class="im">17</span><div><b>Çürük kuyruk artık puan da veriyor:</b> 1 kuyruk gider ama <b>+3 puan</b> kazanırsın. Riskli ama kârlı!</div></li>
+    <li><span class="im">18</span><div><b>BOSS'LAR GELDİ:</b> Pain, Madara ve Nagato &mdash; üçünün de <b>9 kuyruğu</b> var ve kuyruklarını savurarak vuruyorlar.</div></li>
+    <li><span class="im">19</span><div><b>Kediye 2 saldırı:</b> <b>X</b> = çakra topu at, <b>C</b> = kendi kuyruğunu savur.</div></li>
+  </ul>
+
+  <h2>2. oyun nasıl oynanıyor?</h2>
+  <ul class="liste">
+    <li><span class="im">&#9731;</span><div><b>Meteorlar dört bir yandan gelir</b> &mdash; bazıları doğrudan seni hedef alır.</div></li>
+    <li><span class="im">&#10022;</span><div><b>Her yöne kaç:</b> yukarı, aşağı, sağ, sol &mdash; bütün ekran senin.</div></li>
+    <li><span class="im">&#9679;</span><div><b>Mavi çakra küresi</b> topla &mdash; her biri +1 kuyruk verir.</div></li>
+    <li><span class="im">9</span><div><b>9 kuyrukta 10 saniyelik DOKUZ KUYRUK MODU</b> &mdash; meteorlar sana çarpınca patlar!</div></li>
+    <li><span class="im">&#8987;</span><div><b>Puan = hayatta kaldığın saniye.</b> Her 15 saniyede bölüm atlarsın, meteorlar hızlanır.</div></li>
+  </ul>
+
+  <h2>BOSS dövüşü &mdash; yeni!</h2>
+  <ul class="liste">
+    <li><span class="im">3</span><div><b>BÖLÜM 3: PAIN</b> &mdash; 3 canı var. Mor Rinnegan gözler.</div></li>
+    <li><span class="im">5</span><div><b>BÖLÜM 5: MADARA</b> &mdash; 6 canı var. Kırmızı Sharingan gözler.</div></li>
+    <li><span class="im">7</span><div><b>BÖLÜM 7: NAGATO</b> &mdash; 12 canı var. En zoru!</div></li>
+    <li><span class="im">&#128293;</span><div><b>Boss kuyruklarını savurur.</b> Önce kırmızı bir daire çıkar &mdash; <b>o daireden hemen çık!</b></div></li>
+    <li><span class="im">X</span><div><b>X = çakra topu.</b> Uzaktan atarsın, boss'un 1 canını götürür. Meteorları da patlatır!</div></li>
+    <li><span class="im">C</span><div><b>C = kuyruk savurma.</b> Yakına git, 2 can birden götürür &mdash; ama tehlikeli.</div></li>
+    <li><span class="im">&#127881;</span><div><b>Boss'u yenince +1 kuyruk ödül</b> alırsın ve oyun kaldığı yerden devam eder.</div></li>
+    <li><span class="im">&#129418;</span><div><b>Dokuz Kuyruk Modu'ndayken</b> boss'a çarparak da vurabilirsin!</div></li>
+  </ul>
+
+  <h2>1. oyunda neler var?</h2>
+  <ul class="rozetler">
+    <li class="rozet">&#11088; Yıldız = puan</li>
+    <li class="rozet">&#129418; Sağlam kuyruk = +1 kuyruk</li>
+    <li class="rozet">&#129314; Çürük kuyruk = &minus;1 kuyruk, +3 puan</li>
+    <li class="rozet">&#129522; Mıknatıs</li>
+    <li class="rozet">&#128737; Kalkan</li>
+    <li class="rozet">&#9203; Yavaşlatma</li>
+    <li class="rozet">&times;2 Çift puan</li>
+    <li class="rozet">&#128293; Kombo x2 x3 x5</li>
+    <li class="rozet">&#127920; Bölümler</li>
+    <li class="rozet">&#129418; Dokuz Kuyruk Modu</li>
+    <li class="rozet">&#127912; 8 renk</li>
+    <li class="rozet">&#128266; Sesler</li>
+    <li class="rozet">&#128190; Kayıt</li>
+    <li class="rozet">&#9209; Duraklat</li>
+    <li class="rozet">&#9974; Tam ekran</li>
+    <li class="rozet">&#127807; 2 arka plan (B)</li>
+  </ul>
+
+  <h2>5 oyunluk merdiven</h2>
+  <ol class="merdiven">
+    <li class="basamak bitti"><span class="nokta">&#10003;</span><div><b>Yakalama oyunu</b> &mdash; <span>bitti</span></div></li>
+    <li class="basamak bitti"><span class="nokta">&#10003;</span><div><b>Kaçma oyunu</b> &mdash; <span>bitti &mdash; Meteordan Kaçan Kedi</span></div></li>
+    <li class="basamak sirada"><span class="nokta">3</span><div><b>Zıp zıp</b> &mdash; <span>sırada &mdash; yerçekimi ve zıplama</span></div></li>
+    <li class="basamak"><span class="nokta">4</span><div><b>Mini macera</b> &mdash; <span>platformlar ve bölümler</span></div></li>
+    <li class="basamak"><span class="nokta">5</span><div><b>Level Devil</b> &mdash; <span>tuzaklar, asıl hedef</span></div></li>
+  </ol>
+
+  <h2>Yarın 3 adım</h2>
+  <ul class="liste">
+    <li><span class="im">1</span><div><b>İki oyunu da oyna.</b> Masaüstünde iki kısayol var. Hangisi daha eğlenceli?</div></li>
+    <li><span class="im">2</span><div><b>Deney yap.</b> 2. oyunun kodunda <b>BOSS_CANLARI</b> satırını <b>[1, 2, 3]</b> yap, F5'e bas &mdash; boss'lar çok kolaylaşır! Sonra <b>[10, 20, 30]</b> dene.</div></li>
+    <li><span class="im">3</span><div><b>Claude'u aç.</b> Nerede kaldığımızı hatırlıyorum, anlatmana gerek yok.</div></li>
+  </ul>
+
+  <div class="konus">
+    <strong>Bana şunları söyle:</strong>
+    <ul>
+      <li>Soru sorarken "Something else" seçmiştin &mdash; <b>fikrin neydi?</b></li>
+      <li>Oyunu itch.io&#39;ya yükledin mi? <b>Linki gönder.</b></li>
+      <li><b>Boss'lar çok mu zor, çok mu kolay?</b> Söyle, ayarlayalım.</li>
+      <li><b>3. oyuna</b> (zıplama) geçelim mi?</li>
+    </ul>
+  </div>
+
+  <h2>Tuşlar</h2>
+  <ul class="tuslar">
+    <li><kbd>&larr;</kbd><kbd>&rarr;</kbd> Oynat</li>
+    <li><kbd>Boşluk</kbd> Başla / duraklat</li>
+    <li><kbd>F</kbd> Tam ekran</li>
+    <li><kbd>B</kbd> Arka plan</li>
+    <li><kbd>C</kbd> Renk / kuyruk savur</li>
+    <li><kbd>X</kbd> Çakra topu</li>
+    <li><kbd>K</kbd> Kuyruk / et</li>
+    <li><kbd>M</kbd> Ses</li>
+    <li><kbd>R</kbd> Yeniden</li>
+    <li><kbd>F5</kbd> Kodu yenile</li>
+    <li><kbd>F12</kbd> Hata bak</li>
+  </ul>
+
+  <p class="son">
+    <b>Oyunun fikirleri senin, ben sadece klavyeyim.</b><br>
+    Yarın görüşürüz &#128008;&#11088;
+  </p>
+</main>
+
+<script>
+(function () {
+  var tuval = document.getElementById("yildizTuvali");
+  if (!tuval) return;
+  var ctx = tuval.getContext("2d");
+  var yildizlar = [];
+  var duraksat = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function boyutla() {
+    var oran = window.devicePixelRatio || 1;
+    var g = tuval.clientWidth, y = tuval.clientHeight;
+    tuval.width = g * oran; tuval.height = y * oran;
+    ctx.setTransform(oran, 0, 0, oran, 0, 0);
+    yildizlar = [];
+    var adet = Math.round((g * y) / 5200);
+    for (var i = 0; i < adet; i++) {
+      yildizlar.push({ x: Math.random() * g, y: Math.random() * y,
+                       r: Math.random() * 1.3 + 0.3, faz: Math.random() * 6.28 });
+    }
+  }
+
+  var t = 0;
+  function ciz() {
+    var g = tuval.clientWidth, y = tuval.clientHeight;
+    ctx.clearRect(0, 0, g, y);
+    for (var i = 0; i < yildizlar.length; i++) {
+      var s = yildizlar[i];
+      var parlak = duraksat ? 0.5 : 0.28 + Math.sin(t * 0.02 + s.faz) * 0.26;
+      ctx.globalAlpha = Math.max(0.05, parlak);
+      ctx.fillStyle = i % 7 === 0 ? "#ffd75e" : "#efe9ff";
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.2832); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    t++;
+    if (!duraksat) requestAnimationFrame(ciz);
+  }
+
+  boyutla(); ciz();
+  window.addEventListener("resize", function () { boyutla(); if (duraksat) ciz(); });
+})();
+</script>
+
+</body>
+</html>

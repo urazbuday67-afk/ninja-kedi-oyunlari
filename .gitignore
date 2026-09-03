@@ -1,0 +1,18 @@
+# Windows'un kendi çöp dosyaları
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Geçici / yedek dosyalar
+*.tmp
+*.temp
+*~
+*.bak
+
+# Editör ayar klasörleri (kişiye özel)
+.vscode/
+.idea/
+
+# İşletim sistemi
+.DS_Store
