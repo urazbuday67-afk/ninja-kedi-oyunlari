@@ -2882,7 +2882,7 @@ function kediyiCiz(mx, my, menudeMi) {
 //   Parmağını sürükle = kedi oraya gider
 //   Sağ alttaki iki düğme = X (çakra topu) ve C (kuyruk savur)
 // ===========================================================
-var dokunmatikVar = false;          // cihaz dokunmatik mi (düğmeler ona göre çizilir)
+var dokunmatikVar = (("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0);  // cihaz dokunmatik mi
 var basiliDugme = null;             // o an basılı tutulan düğme
 
 function dokunmaDugmeleri() {
@@ -3229,12 +3229,14 @@ function menuyuCiz() {
 
   ctx.font = "600 22px " + BASLIK_FONT;
   ctx.fillStyle = "#3a1a00";
-  ctx.fillText("BOŞLUK  ·  BAŞLA", GENISLIK / 2, 494);
+  ctx.fillText(dokunmatikVar ? "DOKUN  ·  BAŞLA" : "BOŞLUK  ·  BAŞLA", GENISLIK / 2, 494);
 
   // --- ALT BİLGİ ---
   ctx.font = "700 13px " + YAZI_FONT;
   ctx.fillStyle = "#ffffff55";
-  ctx.fillText("← → ↑ ↓ her yöne · BOŞLUK duraklat · F tam ekran · B arka plan · X/C saldırı · G renk · M ses", GENISLIK / 2, 540);
+  ctx.fillText(dokunmatikVar
+    ? "Parmakla sürükle · X ve C düğmeleri saldırı · üste dokun duraklat"
+    : "← → ↑ ↓ her yöne · BOŞLUK duraklat · F tam ekran · B arka plan · X/C saldırı · G renk · M ses", GENISLIK / 2, 540);
 
   ctx.font = "800 13px " + YAZI_FONT;
   ctx.fillStyle = "#ffd84d";
