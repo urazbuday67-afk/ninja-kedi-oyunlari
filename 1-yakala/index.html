@@ -423,7 +423,9 @@ function oyunuBaslat() {
     ezilme: 0, ezilmeHiz: 0,       // squash & stretch
     egim: 0,                        // koşarken yana yatma
     gozKirp: 0, kirpSayaci: 90,
-    sonX: GENISLIK / 2
+    sonX: GENISLIK / 2,
+    sonY: ASAGI_SINIR,
+    adimFazi: 0, yon: 1, hiz: 0, havada: false
   };
   objeler = []; parcaciklar = []; yazilar = []; halkalar = [];
   bossCikti = {};
@@ -2594,6 +2596,11 @@ function kediyiCiz(mx, my, menudeMi) {
   var ex = 1 + kedi.ezilme;
   var ey = 1 - kedi.ezilme;
 
+  // --- yürüme canlandırması ---
+  var yuruyor = (kedi.hiz || 0) > 0.06 && !kedi.havada && durum === "oyun" && !menudeMi;
+  var adimF = kedi.adimFazi || 0;
+  var bobY = yuruyor ? -Math.abs(Math.sin(adimF)) * r * 0.07 : 0;   // yürürken zıplama
+
   // yerdeki gölge — kedi havalanınca gölge YERDE kalır, küçülür ve soluklaşır
   var golgeY = ky + r * 1.42;
   var golgeOlcek = 1;
@@ -2654,8 +2661,8 @@ function kediyiCiz(mx, my, menudeMi) {
 
   // ---------- GÖVDE ----------
   ctx.save();
-  ctx.translate(kx + titreme, ky + r * 0.72);
-  ctx.rotate(kedi.egim * 0.35);
+  ctx.translate(kx + titreme, ky + r * 0.72 + bobY);
+  ctx.rotate(kedi.egim * 0.35 + (yuruyor ? Math.sin(adimF) * 0.06 : 0));   // yürürken sağa-sola sallan
   ctx.scale(ex, ey);
 
   // KUYRUKLAR gövdenin arkasında
@@ -2670,15 +2677,22 @@ function kediyiCiz(mx, my, menudeMi) {
   ctx.beginPath(); ctx.ellipse(0, r * 0.34, r * 0.34, r * 0.42, 0, 0, 6.2832); ctx.fill();
   ctx.globalAlpha = 1;
 
-  ctx.fillStyle = renk.ana;
-  ctx.beginPath(); ctx.ellipse(-r * 0.34, r * 0.72, r * 0.20, r * 0.13, 0, 0, 6.2832); ctx.fill();
-  ctx.beginPath(); ctx.ellipse( r * 0.34, r * 0.72, r * 0.20, r * 0.13, 0, 0, 6.2832); ctx.fill();
-  ctx.strokeStyle = renk.cizgi; ctx.lineWidth = 1.5;
-  for (var pt = -1; pt <= 1; pt += 2) {
+  // --- AYAKLAR: yürürken adım atar (canlı animasyon) ---
+  var ayakGen = r * 0.20 * Math.min(1, kedi.hiz || 0);   // adım büyüklüğü (hıza bağlı)
+  var havadaPoz = kedi.havada ? 1 : 0;
+  for (var ay = -1; ay <= 1; ay += 2) {                  // -1 sol ayak, +1 sağ ayak
+    var faz = Math.sin(adimF + (ay > 0 ? Math.PI : 0));  // sağ ayak zıt fazda basar
+    var ileriGeri = yuruyor ? faz * ayakGen * 0.5 : 0;
+    var kalkma2   = yuruyor ? Math.max(0, faz) * ayakGen * 1.6 : 0;    // adımda ayak belirgin kalkar
+    var ax = ay * r * 0.30 + ileriGeri - havadaPoz * ay * r * 0.06;    // havada içe toplanır
+    var ayy = r * 0.86 - kalkma2 - havadaPoz * r * 0.14;               // ayaklar gövde ALTINDA belirgin
+    ctx.fillStyle = renk.ana;
+    ctx.beginPath(); ctx.ellipse(ax, ayy, r * 0.20, r * 0.13, 0, 0, 6.2832); ctx.fill();
+    ctx.strokeStyle = renk.cizgi; ctx.lineWidth = 1.5;
     for (var c = -1; c <= 1; c++) {
       ctx.beginPath();
-      ctx.moveTo(pt * r * 0.34 + c * r * 0.07, r * 0.66);
-      ctx.lineTo(pt * r * 0.34 + c * r * 0.07, r * 0.74);
+      ctx.moveTo(ax + c * r * 0.07, ayy - r * 0.06);
+      ctx.lineTo(ax + c * r * 0.07, ayy + r * 0.02);
       ctx.stroke();
     }
   }
@@ -2689,8 +2703,8 @@ function kediyiCiz(mx, my, menudeMi) {
   var nefes = Math.sin(sayac * 0.05) * r * 0.02;
 
   ctx.save();
-  ctx.translate(kx + titreme, ky - kalkma + nefes);
-  ctx.rotate(kedi.basAci + kafaSallama + kedi.egim * 0.25);
+  ctx.translate(kx + titreme, ky - kalkma + nefes + bobY);
+  ctx.rotate(kedi.basAci + kafaSallama + kedi.egim * 0.25 + (yuruyor ? Math.sin(adimF) * 0.04 : 0));
   ctx.scale(ex, ey);
 
   ctx.fillStyle = renk.koyu;
@@ -3413,6 +3427,14 @@ function oyunDongusu() {
     var hizFarki = kedi.x - kedi.sonX;
     kedi.egim += (Math.max(-1, Math.min(1, hizFarki / 10)) * 0.22 - kedi.egim) * 0.18;
     kedi.sonX = kedi.x;
+
+    // --- CANLI ANIMASYON: yürüme takibi ---
+    var hareketVar = (gitX !== 0 || gitY !== 0) && kediBagli <= 0;
+    kedi.hiz += ((hareketVar ? 1 : 0) - kedi.hiz) * 0.22;      // yumuşak 0..1 hız
+    if (hareketVar) kedi.adimFazi += 0.35 + kedi.hiz * 0.18;   // yürüdükçe adım fazı artar
+    if (gitX > 0.05) kedi.yon = 1; else if (gitX < -0.05) kedi.yon = -1;
+    kedi.havada = HER_YONE_GIT && kedi.y < ASAGI_SINIR - 8;
+    kedi.sonY = kedi.y;
 
     // BOSS ÇAĞIR — bölümün sonuna doğru, bölüm başına bir kere
     if (!boss && bolum >= BOSS_ILK_BOLUM && !bossCikti[bolum] &&
