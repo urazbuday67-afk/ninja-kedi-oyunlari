@@ -104,6 +104,10 @@ var KUYRUK_MENZIL  = 135;  // C = kuyruk savurmanın erişme mesafesi
 var KUYRUK_BEKLEME = 42;   // iki kuyruk savurma arası kaç kare
 var KUYRUK_HASAR   = 2;    // kuyruk savurma boss'un kaç canını götürsün
 
+// TAKLA (W tuşu) — kaçış hareketi: kedi döner ve o an dokunulmaz olur
+var TAKLA_SURESI  = 30;   // takla kaç kare sürsün (dönme + dokunulmazlık)
+var TAKLA_BEKLEME = 38;   // iki takla arası bekleme (çok sık basılmasın)
+
 // Her boss'un FARKLI ÖZELLİĞİ olsun (senin fikrin!)
 //   "diken"      = boss kendini dikene çevirir, o sırada ona DOKUNMA (çarpınca kuyruk gider)
 //   "uzunKuyruk" = kuyrukları uzar, çok daha uzaktan vurur
@@ -425,7 +429,8 @@ function oyunuBaslat() {
     gozKirp: 0, kirpSayaci: 90,
     sonX: GENISLIK / 2,
     sonY: ASAGI_SINIR,
-    adimFazi: 0, yon: 1, hiz: 0, havada: false
+    adimFazi: 0, yon: 1, hiz: 0, havada: false,
+    takla: 0, taklaBekle: 0, taklaYon: 1
   };
   objeler = []; parcaciklar = []; yazilar = []; halkalar = [];
   bossCikti = {};
@@ -589,6 +594,7 @@ document.addEventListener("keydown", function (e) {
     if (!sesKapali) ton(800, 0.10, "sine", 0.15);
   }
   // X = çakra topu at,  C = kuyrukları savur  (boss dövüşü)
+  if ((e.key === "w" || e.key === "W") && durum === "oyun") { e.preventDefault(); taklaAt(); }
   if ((e.key === "x" || e.key === "X") && durum === "oyun") cakraTopuAt();
   if ((e.key === "c" || e.key === "C") && durum === "oyun") kuyrukSavur();
 
@@ -1733,7 +1739,7 @@ function bossGuncelle() {
 }
 
 function bossKediyeVurdu() {
-  if (kediDokunulmaz > 0) return;          // az önce vurulduysa tekrar vurmasın
+  if (kediDokunulmaz > 0 || kedi.takla > 0) return;   // az önce vurulduysa ya da takla atıyorsa dokunulmaz
   if (aktifGucler.kalkan > 0) {
     yazilar.push({ x: kedi.x, y: kedi.y - 110, omur: 50, metin: "KALKAN!", renk: "#5ec8ff", boy: 22 });
     sesKalkan();
@@ -1762,6 +1768,24 @@ function bossKediyeVurdu() {
 }
 
 // ---- KEDİNİN SALDIRILARI ----
+function taklaAt() {
+  if (kedi.takla > 0 || kedi.taklaBekle > 0) return;   // zaten dönüyor ya da bekleme var
+  kedi.takla = TAKLA_SURESI;
+  kedi.taklaBekle = TAKLA_SURESI + TAKLA_BEKLEME;
+  kedi.taklaYon = kedi.yon || 1;
+  kediyiEz(EZILME_GUCU * 0.5);
+  ton(520, 0.10, "sine", 0.13, 1000);
+  ton(920, 0.10, "sine", 0.10, 1350, 0.05);
+  halkalar.push({ x: kedi.x, y: kedi.y, r: 8, maxR: KEDI_BOYU * 1.1, omur: 20, maxOmur: 20, renk: "#9ad4ff" });
+  for (var i = 0; i < 18; i++) {
+    parcaciklar.push({
+      x: kedi.x, y: kedi.y + KEDI_BOYU * 0.3,
+      vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8,
+      omur: 26, renk: "#9ad4ff", boy: 1.5 + Math.random() * 2.5
+    });
+  }
+}
+
 function cakraTopuAt() {
   if (kediBagli > 0) {                       // zincirdeysen X seni kurtarmaya çalışır
     kediBagli -= ZINCIR_KURTUL;
@@ -2618,6 +2642,11 @@ function kediyiCiz(mx, my, menudeMi) {
   ctx.fill();
   ctx.restore();
 
+  // TAKLA: gölge hariç tüm kedi kendi merkezi etrafında döner
+  var taklaAci = (kedi.takla > 0) ? (1 - kedi.takla / TAKLA_SURESI) * 6.2832 * (kedi.taklaYon || 1) : 0;
+  ctx.save();
+  ctx.translate(kx, ky); ctx.rotate(taklaAci); ctx.translate(-kx, -ky);
+
   // KALKAN balonu
   if (aktifGucler && aktifGucler.kalkan > 0) {
     ctx.save();
@@ -2890,6 +2919,7 @@ function kediyiCiz(mx, my, menudeMi) {
     }
   }
   ctx.restore();
+  ctx.restore();   // takla dönme wrapper kapanışı
 }
 
 
@@ -3253,7 +3283,7 @@ function menuyuCiz() {
   ctx.fillStyle = "#ffffff55";
   ctx.fillText(dokunmatikVar
     ? "Parmakla sürükle · X ve C düğmeleri saldırı · üste dokun duraklat"
-    : "← → ↑ ↓ her yöne · BOŞLUK duraklat · F tam ekran · B arka plan · X/C saldırı · G renk · M ses", GENISLIK / 2, 540);
+    : "← → ↑ ↓ her yöne · BOŞLUK duraklat · F tam ekran · B arka plan · W takla · X/C saldırı · G renk · M ses", GENISLIK / 2, 540);
 
   ctx.font = "800 13px " + YAZI_FONT;
   ctx.fillStyle = "#ffd84d";
@@ -3398,7 +3428,7 @@ function oyunDongusu() {
     if (tuslar["ArrowLeft"]  || tuslar["a"] || tuslar["A"]) gitX -= 1;
     if (tuslar["ArrowRight"] || tuslar["d"] || tuslar["D"]) gitX += 1;
     if (HER_YONE_GIT) {
-      if (tuslar["ArrowUp"]   || tuslar["w"] || tuslar["W"]) gitY -= 1;
+      if (tuslar["ArrowUp"]) gitY -= 1;   // W artık TAKLA; yukarı = yukarı ok tuşu
       if (tuslar["ArrowDown"] || tuslar["s"] || tuslar["S"]) gitY += 1;
     }
     // çapraz giderken hızlanmasın (iki yön aynı anda basılıysa yavaşlat)
@@ -3452,6 +3482,8 @@ function oyunDongusu() {
     atesToplariniGuncelle();
     zincirGuncelle();
     if (kediDokunulmaz > 0) kediDokunulmaz--;
+    if (kedi.takla > 0) kedi.takla--;
+    if (kedi.taklaBekle > 0) kedi.taklaBekle--;
     if (topBekle > 0) topBekle--;
     if (kuyrukBekle > 0) kuyrukBekle--;
     if (kediSavurma > 0) kediSavurma--;
@@ -3640,10 +3672,11 @@ function oyunDongusu() {
               if (bolum > enYuksekBolum) { enYuksekBolum = bolum; kaydet(); }
             }
           }
-          if (aktifGucler.kalkan > 0) {
-            parcaRengi = "#5ec8ff"; halkaRengi = "#5ec8ff";
+          if (aktifGucler.kalkan > 0 || kedi.takla > 0) {
+            var taklaMi = kedi.takla > 0;
+            parcaRengi = "#9ad4ff"; halkaRengi = "#9ad4ff";
             donma = Math.max(donma, 3);
-            yazilar.push({ x: obj.x, y: obj.y, omur: 45, metin: "KALKAN!", renk: "#5ec8ff", boy: 20 });
+            yazilar.push({ x: obj.x, y: obj.y, omur: 45, metin: taklaMi ? "TAKLA!" : "KALKAN!", renk: "#9ad4ff", boy: 20 });
             sesKalkan();
           } else {
             can--; kombo = 0;
