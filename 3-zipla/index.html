@@ -47,6 +47,9 @@ var CAN_BASLANGIC  = 3;      // Kaç canla başlasın
 var KAMERA_KAYMA   = 0.35;   // Karakter ekranın ne kadar solunda dursun (0.5 = orta)
 var OLUM_DERINLIGI = 260;    // Ekranın altından ne kadar sonra ölsün
 
+// SAHTE BLOK (Level Devil trollü!) — basınca titreyip kırılır, düşersin
+var SAHTE_KIRILMA  = 20;     // Sahte bloğa basınca kaç kare sonra kırılsın (0 = anında)
+
 var YAPIMCI_1      = "Uraz Buday";
 var YAPIMCI_2      = "Çağlar Buday";
 var TARIH          = "5 Eylül 2026";
@@ -72,7 +75,7 @@ var BOLUMLER = [
     platformlar: [
       [0, 500, 360],
       [440, 500, 300],
-      [820, 440, 180],
+      [820, 440, 180, "sahte"],
       [1080, 380, 170],
       [1330, 460, 380]
     ]
@@ -85,9 +88,9 @@ var BOLUMLER = [
       [340, 460, 150],
       [560, 400, 130],
       [780, 350, 120],
-      [1000, 420, 140],
+      [1000, 420, 140, "sahte"],
       [1230, 480, 150],
-      [1450, 400, 120],
+      [1450, 400, 120, "sahte"],
       [1650, 340, 120],
       [1850, 470, 360]
     ]
@@ -160,9 +163,13 @@ sesKapali = !!kayit.sesKapali;
 // ===========================================================
 var durum = "menu";     // menu | oyun | duraklat | bitti | kazandi
 var oyuncu, kameraX, bolumNo, can, sayac, olumSayac, bayrakSalla, bolumYazi, gecenKare;
+var aktifPlatformlar = [];
 
 function bolumuKur(no) {
   var b = BOLUMLER[no];
+  aktifPlatformlar = b.platformlar.map(function (p) {
+    return { x: p[0], y: p[1], g: p[2], sahte: p[3] === "sahte", tetik: false, kirilma: SAHTE_KIRILMA, gitti: false, titre: 0 };
+  });
   oyuncu = {
     x: b.baslangic.x, y: b.baslangic.y,
     vx: 0, vy: 0, yerde: false, ciftHak: false,
@@ -300,16 +307,29 @@ function fizik() {
   // platform çarpışması (üstten inme)
   var oncedenYerde = oyuncu.yerde;
   oyuncu.yerde = false;
-  var platlar = suankiBolum().platformlar;
-  for (var i = 0; i < platlar.length; i++) {
-    var p = platlar[i], px = p[0], py = p[1], pg = p[2];
+  for (var i = 0; i < aktifPlatformlar.length; i++) {
+    var p = aktifPlatformlar[i];
+    if (p.gitti) continue;                                   // kırılmış sahte blok: yok
     var ayak = oyuncu.y + yariB;
     if (oyuncu.vy >= 0 &&
-        oyuncu.x + yariB * 0.7 > px && oyuncu.x - yariB * 0.7 < px + pg &&
-        ayak >= py && ayakOnce <= py + 14) {
-      oyuncu.y = py - yariB; oyuncu.vy = 0; oyuncu.yerde = true;
-      if (!oncedenYerde) { oyuncuyuEz(0.18); sesKon(); for (var t = 0; t < 5; t++) toz(oyuncu.x, py); }
+        oyuncu.x + yariB * 0.7 > p.x && oyuncu.x - yariB * 0.7 < p.x + p.g &&
+        ayak >= p.y && ayakOnce <= p.y + 14) {
+      oyuncu.y = p.y - yariB; oyuncu.vy = 0; oyuncu.yerde = true;
+      if (!oncedenYerde) { oyuncuyuEz(0.18); sesKon(); for (var t = 0; t < 5; t++) toz(oyuncu.x, p.y); }
+      if (p.sahte) { p.tetik = true; if (SAHTE_KIRILMA <= 0) p.gitti = true; }   // troll: basınca tetiklenir
       break;
+    }
+  }
+  // sahte blokların kırılma geri sayımı
+  for (var sp = 0; sp < aktifPlatformlar.length; sp++) {
+    var q = aktifPlatformlar[sp];
+    if (q.sahte && q.tetik && !q.gitti) {
+      q.titre = Math.min(1, q.titre + 0.2);
+      q.kirilma--;
+      if (q.kirilma <= 0) {
+        q.gitti = true; sesOlum && ton(140, 0.18, "sawtooth", 0.16, 60);
+        for (var kk = 0; kk < 12; kk++) { var pr = { x: q.x + Math.random() * q.g, y: q.y + 10, vx: (Math.random() - 0.5) * 5, vy: Math.random() * 3 + 1, omur: 30, boy: 3 + Math.random() * 4 }; parcaciklar.push(pr); }
+      }
     }
   }
 
@@ -379,21 +399,29 @@ function arkaPlaniCiz() {
 //   PLATFORM ÇİZİMİ
 // ===========================================================
 function platformlariCiz() {
-  var platlar = suankiBolum().platformlar;
-  for (var i = 0; i < platlar.length; i++) {
-    var p = platlar[i], x = p[0] - kameraX, y = p[1], g = p[2];
+  for (var i = 0; i < aktifPlatformlar.length; i++) {
+    var pf = aktifPlatformlar[i];
+    if (pf.gitti) continue;
+    var titreX = pf.titre > 0 ? (Math.random() - 0.5) * pf.titre * 6 : 0;
+    var x = pf.x - kameraX + titreX, y = pf.y, g = pf.g;
     if (x + g < -40 || x > GENISLIK + 40) continue;
     var kalin = YUKSEKLIK - y + 40;
+    var kirilyor = pf.sahte && pf.tetik;
     // toprak gövde
     var gr = ctx.createLinearGradient(0, y, 0, y + 60);
-    gr.addColorStop(0, "#7a5433"); gr.addColorStop(1, "#4a3320");
+    if (kirilyor) { gr.addColorStop(0, "#a83a2a"); gr.addColorStop(1, "#5a1f18"); }
+    else { gr.addColorStop(0, "#7a5433"); gr.addColorStop(1, "#4a3320"); }
     ctx.fillStyle = gr;
     ctx.fillRect(x, y + 8, g, kalin);
     // çim üst
-    ctx.fillStyle = "#5cc06a";
+    ctx.fillStyle = kirilyor ? "#e0603f" : "#5cc06a";
     ctx.beginPath(); ctx.roundRect(x, y, g, 16, 6); ctx.fill();
-    ctx.fillStyle = "#6fd97d";
+    ctx.fillStyle = kirilyor ? "#ff8a5a" : "#6fd97d";
     ctx.fillRect(x, y, g, 5);
+    if (kirilyor) {   // çatlak
+      ctx.strokeStyle = "rgba(0,0,0,0.5)"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x + g * 0.5, y); ctx.lineTo(x + g * 0.42, y + 24); ctx.lineTo(x + g * 0.6, y + 40); ctx.stroke();
+    }
   }
 }
 
@@ -405,10 +433,9 @@ function bayragiCiz() {
   if (bx < -60 || bx > GENISLIK + 60) return;
   var taban = 500;
   // direği zemine oturt (en yakın platform üstü)
-  var platlar = suankiBolum().platformlar;
-  for (var i = 0; i < platlar.length; i++) {
-    var p = platlar[i];
-    if (suankiBolum().bayrak >= p[0] && suankiBolum().bayrak <= p[0] + p[2]) { taban = p[1]; break; }
+  for (var i = 0; i < aktifPlatformlar.length; i++) {
+    var p = aktifPlatformlar[i];
+    if (suankiBolum().bayrak >= p.x && suankiBolum().bayrak <= p.x + p.g) { taban = p.y; break; }
   }
   ctx.strokeStyle = "#dfe6f2"; ctx.lineWidth = 5; ctx.lineCap = "round";
   ctx.beginPath(); ctx.moveTo(bx, taban); ctx.lineTo(bx, taban - 130); ctx.stroke();
