@@ -2599,7 +2599,8 @@ function kediyiCiz(mx, my, menudeMi) {
   // --- yürüme canlandırması ---
   var yuruyor = (kedi.hiz || 0) > 0.06 && !kedi.havada && durum === "oyun" && !menudeMi;
   var adimF = kedi.adimFazi || 0;
-  var bobY = yuruyor ? -Math.abs(Math.sin(adimF)) * r * 0.07 : 0;   // yürürken zıplama
+  var bobY = yuruyor ? -Math.abs(Math.sin(adimF)) * r * 0.07
+           : (kedi.havada ? Math.sin(sayac * 0.09) * r * 0.06 : 0);   // yürürken zıplama, havada süzülme dalgası
 
   // yerdeki gölge — kedi havalanınca gölge YERDE kalır, küçülür ve soluklaşır
   var golgeY = ky + r * 1.42;
@@ -2662,8 +2663,8 @@ function kediyiCiz(mx, my, menudeMi) {
   // ---------- GÖVDE ----------
   ctx.save();
   ctx.translate(kx + titreme, ky + r * 0.72 + bobY);
-  ctx.rotate(kedi.egim * 0.35 + (yuruyor ? Math.sin(adimF) * 0.06 : 0));   // yürürken sağa-sola sallan
-  ctx.scale(ex, ey);
+  ctx.rotate(kedi.egim * (kedi.havada ? 0.62 : 0.35) + (yuruyor ? Math.sin(adimF) * 0.06 : 0));   // yürürken sallan, havada yana yat
+  ctx.scale(ex * (1 - Math.abs(kedi.egim) * 0.13), ey);   // gittiği yöne hafif dönüş (3B perspektif)
 
   // KUYRUKLAR gövdenin arkasında
   kuyruklariCiz(r, renk, can, evrimGecti);
@@ -2687,8 +2688,9 @@ function kediyiCiz(mx, my, menudeMi) {
     var suzSalinim = havadaPoz * Math.sin(sayac * 0.14 + ay) * r * 0.05;      // havada bacaklar hafif oynar
     var ax = ay * r * 0.30 + ileriGeri + havadaPoz * ay * r * 0.14;          // havada bacaklar YANA açılır (uçuş pozu)
     var ayy = r * 0.86 - kalkma2 - havadaPoz * r * 0.06 + suzSalinim + havadaPoz * ay * r * 0.07;   // asimetrik süzülme
-    ctx.fillStyle = renk.ana;
-    ctx.beginPath(); ctx.ellipse(ax, ayy, r * 0.20, r * 0.13, 0, 0, 6.2832); ctx.fill();
+    var derinlik = yuruyor ? (1 + faz * 0.16) : 1;                     // öne gelen ayak YAKIN (büyük), arka UZAK (küçük)
+    ctx.fillStyle = (yuruyor && faz < -0.1) ? renk.koyu : renk.ana;    // arkadaki ayak koyu (gölgede)
+    ctx.beginPath(); ctx.ellipse(ax, ayy, r * 0.20 * derinlik, r * 0.13 * derinlik, 0, 0, 6.2832); ctx.fill();
     ctx.strokeStyle = renk.cizgi; ctx.lineWidth = 1.5;
     for (var c = -1; c <= 1; c++) {
       ctx.beginPath();
@@ -2706,7 +2708,7 @@ function kediyiCiz(mx, my, menudeMi) {
   ctx.save();
   ctx.translate(kx + titreme, ky - kalkma + nefes + bobY);
   ctx.rotate(kedi.basAci + kafaSallama + kedi.egim * 0.25 + (yuruyor ? Math.sin(adimF) * 0.04 : 0));
-  ctx.scale(ex, ey);
+  ctx.scale(ex * (1 - Math.abs(kedi.egim) * 0.10), ey);   // kafa da hafif döner (3B)
 
   ctx.fillStyle = renk.koyu;
   ctx.beginPath();
