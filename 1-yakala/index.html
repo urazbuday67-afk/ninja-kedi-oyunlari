@@ -2684,8 +2684,9 @@ function kediyiCiz(mx, my, menudeMi) {
     var faz = Math.sin(adimF + (ay > 0 ? Math.PI : 0));  // sağ ayak zıt fazda basar
     var ileriGeri = yuruyor ? faz * ayakGen * 0.5 : 0;
     var kalkma2   = yuruyor ? Math.max(0, faz) * ayakGen * 1.6 : 0;    // adımda ayak belirgin kalkar
-    var ax = ay * r * 0.30 + ileriGeri - havadaPoz * ay * r * 0.06;    // havada içe toplanır
-    var ayy = r * 0.86 - kalkma2 - havadaPoz * r * 0.14;               // ayaklar gövde ALTINDA belirgin
+    var suzSalinim = havadaPoz * Math.sin(sayac * 0.14 + ay) * r * 0.05;      // havada bacaklar hafif oynar
+    var ax = ay * r * 0.30 + ileriGeri + havadaPoz * ay * r * 0.14;          // havada bacaklar YANA açılır (uçuş pozu)
+    var ayy = r * 0.86 - kalkma2 - havadaPoz * r * 0.06 + suzSalinim + havadaPoz * ay * r * 0.07;   // asimetrik süzülme
     ctx.fillStyle = renk.ana;
     ctx.beginPath(); ctx.ellipse(ax, ayy, r * 0.20, r * 0.13, 0, 0, 6.2832); ctx.fill();
     ctx.strokeStyle = renk.cizgi; ctx.lineWidth = 1.5;
