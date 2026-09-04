@@ -666,6 +666,10 @@ function kediyiCiz(mx, my) {
   var ky = (my === undefined) ? kedi.y : my;
   var alevli = dokuzKuyrukModu();
   var ex = 1 + kedi.ezilme, ey = 1 - kedi.ezilme;
+  // --- CANLI UÇUŞ ---
+  var ucHiz = Math.min(1, Math.sqrt(kedi.vx * kedi.vx + kedi.vy * kedi.vy) / KEDI_HIZI);
+  var suzY = Math.sin(sayac * 0.08) * r * 0.05;   // havada süzülme dalgası
+  var persp = 1 - Math.abs(kedi.egim) * 0.12;     // gittiği yöne 3B perspektif
 
   // vurulunca yanıp sönsün
   if (dokunulmaz > 0 && Math.floor(dokunulmaz / 5) % 2 === 0) ctx.globalAlpha = 0.35;
@@ -694,9 +698,9 @@ function kediyiCiz(mx, my) {
 
   // GÖVDE
   ctx.save();
-  ctx.translate(kx, ky + r * 0.72);
+  ctx.translate(kx, ky + r * 0.72 + suzY);
   ctx.rotate(kedi.egim * 0.35);
-  ctx.scale(ex, ey);
+  ctx.scale(ex * persp, ey);
   kuyruklariCiz(r, can, alevli, kediSavurAcisi());
   var govde = ctx.createLinearGradient(0, -r * 0.4, 0, r * 0.9);
   govde.addColorStop(0, KEDI_RENK.ana); govde.addColorStop(1, KEDI_RENK.koyu);
@@ -706,15 +710,17 @@ function kediyiCiz(mx, my) {
   ctx.beginPath(); ctx.ellipse(0, r * 0.34, r * 0.34, r * 0.42, 0, 0, 6.2832); ctx.fill();
   ctx.globalAlpha = (dokunulmaz > 0 && Math.floor(dokunulmaz / 5) % 2 === 0) ? 0.35 : 1;
   ctx.fillStyle = KEDI_RENK.ana;
-  ctx.beginPath(); ctx.ellipse(-r * 0.34, r * 0.72, r * 0.20, r * 0.13, 0, 0, 6.2832); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(r * 0.34, r * 0.72, r * 0.20, r * 0.13, 0, 0, 6.2832); ctx.fill();
+  var ayakAc = ucHiz * r * 0.10;                       // hızlanınca bacaklar yana açılır (uçuş)
+  var ayakSal = Math.sin(sayac * 0.12) * r * 0.03;     // hafif süzülme salınımı
+  ctx.beginPath(); ctx.ellipse(-r * 0.34 - ayakAc, r * 0.72 + ayakSal, r * 0.20, r * 0.13, 0, 0, 6.2832); ctx.fill();
+  ctx.beginPath(); ctx.ellipse( r * 0.34 + ayakAc, r * 0.72 - ayakSal, r * 0.20, r * 0.13, 0, 0, 6.2832); ctx.fill();
   ctx.restore();
 
   // KAFA
   ctx.save();
-  ctx.translate(kx, ky - kedi.basKalk * r * 0.30 + Math.sin(sayac * 0.05) * r * 0.02);
+  ctx.translate(kx, ky - kedi.basKalk * r * 0.30 + Math.sin(sayac * 0.05) * r * 0.02 + suzY);
   ctx.rotate(kedi.basAci + kedi.egim * 0.25);
-  ctx.scale(ex, ey);
+  ctx.scale(ex * persp, ey);
 
   ctx.fillStyle = KEDI_RENK.koyu;
   ctx.beginPath();
