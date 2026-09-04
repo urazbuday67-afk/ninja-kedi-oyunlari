@@ -2938,8 +2938,7 @@ function dokunmaDugmeleri() {
   return {
     w: { ad: "W", x: GENISLIK - k - b * 3.7,  y: YUKSEKLIK - k - b, boy: b, renk: "#8fd14f" },
     x: { ad: "X", x: GENISLIK - k - b * 2.35, y: YUKSEKLIK - k - b,        boy: b, renk: "#6fd8ff" },
-    c: { ad: "C", x: GENISLIK - k - b,        y: YUKSEKLIK - k - b,        boy: b, renk: "#ffb347" },
-    w: { ad: "W", x: GENISLIK - k - b * 1.67, y: YUKSEKLIK - k - b * 2.05, boy: b, renk: "#9ad4ff" }   // TAKLA
+    c: { ad: "C", x: GENISLIK - k - b,        y: YUKSEKLIK - k - b,        boy: b, renk: "#ffb347" }
   };
 }
 
@@ -2989,7 +2988,6 @@ ekran.addEventListener("touchstart", function (e) {
   if (dugme === "w") { basiliDugme = "w"; taklaAt(); return; }
   if (dugme === "x") { basiliDugme = "x"; cakraTopuAt(); return; }
   if (dugme === "c") { basiliDugme = "c"; kuyrukSavur(); return; }
-  if (dugme === "w") { basiliDugme = "w"; taklaAt(); return; }
 
   kediyiOraTasi(nokta);
 }, { passive: false });
