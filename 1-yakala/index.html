@@ -2816,11 +2816,11 @@ function kediyiCiz(mx, my, menudeMi) {
     ctx.quadraticCurveTo(r * 0.30, r * 0.66, 0, r * 0.70);
     ctx.quadraticCurveTo(-r * 0.30, r * 0.66, -r * 0.36, r * 0.30);
     ctx.closePath(); ctx.fill();
-    var sarkma = Math.sin(sayac * 0.5) * r * 0.08;
+    var sarkma = Math.sin(sayac * 0.5) * r * 0.04;
     ctx.fillStyle = "#ff7a9c";
-    ctx.beginPath(); ctx.ellipse(sarkma, r * 0.88, r * 0.17, r * 0.34, sarkma * 0.5, 0, 6.2832); ctx.fill();
-    ctx.strokeStyle = "#e05b80"; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(sarkma, r * 0.62); ctx.lineTo(sarkma * 1.4, r * 1.16); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(sarkma, r * 0.54, r * 0.13, r * 0.16, 0, 0, 6.2832); ctx.fill();   // ağızdan çıkan kısa dil
+    ctx.strokeStyle = "#e05b80"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(sarkma, r * 0.44); ctx.lineTo(sarkma, r * 0.66); ctx.stroke();       // dil ortası
     ctx.strokeStyle = "#8fd14f"; ctx.globalAlpha = 0.7; ctx.lineWidth = 2.5;
     for (var kk = -1; kk <= 1; kk++) {
       ctx.beginPath();
