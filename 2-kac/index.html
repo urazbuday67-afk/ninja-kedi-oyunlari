@@ -82,6 +82,10 @@ var TOP_HIZI       = 9.5;   // X ile atılan çakra topunun hızı
 var TOP_BEKLE      = 16;    // Kaç karede bir top atılabilsin
 var TOP_HASAR      = 1;     // Çakra topu kaç can götürsün
 var KUYRUK_MENZIL  = 120;   // C ile kuyruk savurma menzili (yakın dövüş)
+
+// DOKUNMATİK (telefon/tablet)
+var DOKUNMATIK_DUGME_BOY = 74;
+var DOKUNMATIK_KENAR     = 26;
 var KUYRUK_BEKLE   = 48;    // Kuyruk savurma kaç karede bir
 var KUYRUK_HASAR   = 2;     // Kuyruk savurma kaç can götürsün
 
@@ -238,6 +242,9 @@ var can, sayac, sure, bolum, dokunulmaz, evrimSayac, evrimGecti;
 var sarsinti, donma, ekranParlama, bolumYazi, evrimYazi;
 var boss, topler, sonrakiBoss, bolumSayac;
 var topBekleme, kuyrukSaldiri, kuyrukBekleme;
+var dokunmatikVar = (("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0);
+var basiliDugme = null;
+var dokunmatikHedef = null;
 var bossYazi, bossYaziMetin;
 
 function oyunuBaslat() {
@@ -825,6 +832,76 @@ document.addEventListener("keydown", function (e) {
   if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.key) >= 0) e.preventDefault();
 });
 document.addEventListener("keyup", function (e) { tuslar[e.key] = false; });
+
+// ===========================================================
+//   DOKUNMATİK KONTROL (telefonda klavye yok!)
+//   Parmağını sürükle = kedi oraya doğru uçar
+//   Sağ alttaki düğmeler = X (çakra topu) ve C (kuyruk savur)
+// ===========================================================
+function dokunmaDugmeleri() {
+  var b = DOKUNMATIK_DUGME_BOY, k = DOKUNMATIK_KENAR;
+  return {
+    x: { ad: "X", x: GENISLIK - k - b * 2.35, y: YUKSEKLIK - k - b, boy: b, renk: "#6fd8ff" },
+    c: { ad: "C", x: GENISLIK - k - b,        y: YUKSEKLIK - k - b, boy: b, renk: "#ffd84d" }
+  };
+}
+function dugmeyeMiBasildi(nokta) {
+  var dm = dokunmaDugmeleri(), adlar = ["x", "c"];
+  for (var i = 0; i < adlar.length; i++) {
+    var g = dm[adlar[i]], mx = g.x + g.boy / 2, my = g.y + g.boy / 2;
+    var dx = nokta.x - mx, dy = nokta.y - my;
+    if (Math.sqrt(dx * dx + dy * dy) < g.boy * 0.62) return adlar[i];
+  }
+  return null;
+}
+function dokunusKonumu(dokunus) {
+  var kutu = ekran.getBoundingClientRect();
+  return {
+    x: (dokunus.clientX - kutu.left) * (GENISLIK / kutu.width),
+    y: (dokunus.clientY - kutu.top) * (YUKSEKLIK / kutu.height)
+  };
+}
+ekran.addEventListener("touchstart", function (e) {
+  dokunmatikVar = true; sesiUyandir(); e.preventDefault();
+  var nokta = dokunusKonumu(e.changedTouches[0]);
+  if (durum === "menu")     { oyunuBaslat(); sesBolum(); return; }
+  if (durum === "bitti")    { oyunuBaslat(); return; }
+  if (durum === "duraklat") { durum = "oyun"; sesDevam(); return; }
+  var dugme = dugmeyeMiBasildi(nokta);
+  if (dugme === "x") { basiliDugme = "x"; if (topBekleme <= 0) topAt(); return; }
+  if (dugme === "c") { basiliDugme = "c"; if (kuyrukBekleme <= 0 && kuyrukSaldiri <= 0) kuyrukSavurBasla(); return; }
+  dokunmatikHedef = nokta;
+}, { passive: false });
+ekran.addEventListener("touchmove", function (e) {
+  e.preventDefault();
+  if (basiliDugme) return;
+  dokunmatikHedef = dokunusKonumu(e.changedTouches[0]);
+}, { passive: false });
+ekran.addEventListener("touchend", function (e) {
+  e.preventDefault(); basiliDugme = null; dokunmatikHedef = null;
+}, { passive: false });
+ekran.addEventListener("touchcancel", function () { basiliDugme = null; dokunmatikHedef = null; });
+
+function dokunmaDugmeleriniCiz() {
+  if (!dokunmatikVar || durum !== "oyun") return;
+  var dm = dokunmaDugmeleri(), adlar = ["x", "c"];
+  for (var i = 0; i < adlar.length; i++) {
+    var g = dm[adlar[i]], mx = g.x + g.boy / 2, my = g.y + g.boy / 2;
+    var bekliyor = (adlar[i] === "x") ? topBekleme > 0 : (kuyrukBekleme > 0 || kuyrukSaldiri > 0);
+    var basili = (basiliDugme === adlar[i]);
+    ctx.save();
+    ctx.globalAlpha = bekliyor ? 0.3 : (basili ? 0.95 : 0.62);
+    ctx.fillStyle = "rgba(10,6,26,0.7)";
+    ctx.beginPath(); ctx.arc(mx, my, g.boy * (basili ? 0.58 : 0.62), 0, 6.2832); ctx.fill();
+    ctx.strokeStyle = g.renk; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(mx, my, g.boy * (basili ? 0.58 : 0.62), 0, 6.2832); ctx.stroke();
+    ctx.fillStyle = g.renk;
+    ctx.font = "700 " + Math.round(g.boy * 0.46) + "px " + BASLIK_FONT;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(g.ad, mx, my); ctx.textBaseline = "alphabetic";
+    ctx.restore();
+  }
+}
 
 ekran.addEventListener("click", function (e) {
   sesiUyandir();
@@ -1710,6 +1787,11 @@ function oyunDongusu() {
     if (tuslar["ArrowRight"] || tuslar["d"] || tuslar["D"]) gx += 1;
     if (tuslar["ArrowUp"]    || tuslar["w"] || tuslar["W"]) gy -= 1;
     if (tuslar["ArrowDown"]  || tuslar["s"] || tuslar["S"]) gy += 1;
+    if (dokunmatikHedef) {   // parmakla sürükleme: kedi parmağa doğru uçar
+      var ddx = dokunmatikHedef.x - kedi.x, ddy = dokunmatikHedef.y - kedi.y;
+      var duz = Math.sqrt(ddx * ddx + ddy * ddy);
+      if (duz > 10) { gx = ddx / duz; gy = ddy / duz; } else { gx = 0; gy = 0; }
+    }
     if (gx !== 0 && gy !== 0) { gx *= 0.707; gy *= 0.707; }   // çapraz da aynı hızda olsun
 
     kedi.vx += (gx * KEDI_HIZI - kedi.vx) * 0.28;
@@ -1917,6 +1999,7 @@ function oyunDongusu() {
     toplariCiz();
 
     kediyiCiz();
+    dokunmaDugmeleriniCiz();
 
     ctx.textAlign = "center";
     for (var t3 = 0; t3 < yazilar.length; t3++) {
