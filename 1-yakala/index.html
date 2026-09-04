@@ -2936,14 +2936,16 @@ function dokunmaDugmeleri() {
   var b = DOKUNMATIK_DUGME_BOY;
   var k = DOKUNMATIK_KENAR;
   return {
-    x: { ad: "X", x: GENISLIK - k - b * 2.35, y: YUKSEKLIK - k - b, boy: b, renk: "#6fd8ff" },
-    c: { ad: "C", x: GENISLIK - k - b,        y: YUKSEKLIK - k - b, boy: b, renk: "#ffb347" }
+    w: { ad: "W", x: GENISLIK - k - b * 3.7,  y: YUKSEKLIK - k - b, boy: b, renk: "#8fd14f" },
+    x: { ad: "X", x: GENISLIK - k - b * 2.35, y: YUKSEKLIK - k - b,        boy: b, renk: "#6fd8ff" },
+    c: { ad: "C", x: GENISLIK - k - b,        y: YUKSEKLIK - k - b,        boy: b, renk: "#ffb347" },
+    w: { ad: "W", x: GENISLIK - k - b * 1.67, y: YUKSEKLIK - k - b * 2.05, boy: b, renk: "#9ad4ff" }   // TAKLA
   };
 }
 
 function dugmeyeMiBasildi(nokta) {
   var d = dokunmaDugmeleri();
-  var adlar = ["x", "c"];
+  var adlar = ["x", "c", "w"];
   for (var i = 0; i < adlar.length; i++) {
     var g = d[adlar[i]];
     var mx = g.x + g.boy / 2, my = g.y + g.boy / 2;
@@ -2984,8 +2986,10 @@ ekran.addEventListener("touchstart", function (e) {
   if (durum === "duraklat")      { durum = "oyun"; sesDevam(); return; }
 
   var dugme = dugmeyeMiBasildi(nokta);
+  if (dugme === "w") { basiliDugme = "w"; taklaAt(); return; }
   if (dugme === "x") { basiliDugme = "x"; cakraTopuAt(); return; }
   if (dugme === "c") { basiliDugme = "c"; kuyrukSavur(); return; }
+  if (dugme === "w") { basiliDugme = "w"; taklaAt(); return; }
 
   kediyiOraTasi(nokta);
 }, { passive: false });
@@ -3007,11 +3011,11 @@ ekran.addEventListener("touchcancel", function () { basiliDugme = null; });
 function dokunmaDugmeleriniCiz() {
   if (!dokunmatikVar || durum !== "oyun") return;
   var d = dokunmaDugmeleri();
-  var adlar = ["x", "c"];
+  var adlar = ["x", "c", "w"];
   for (var i = 0; i < adlar.length; i++) {
     var g = d[adlar[i]];
     var mx = g.x + g.boy / 2, my = g.y + g.boy / 2;
-    var bekliyor = (adlar[i] === "x") ? topBekle > 0 : kuyrukBekle > 0;
+    var bekliyor = adlar[i] === "x" ? topBekle > 0 : (adlar[i] === "c" ? kuyrukBekle > 0 : kedi.taklaBekle > 0);
     var basili = (basiliDugme === adlar[i]);
 
     ctx.save();
@@ -3021,11 +3025,26 @@ function dokunmaDugmeleriniCiz() {
     ctx.strokeStyle = g.renk;
     ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(mx, my, g.boy * (basili ? 0.58 : 0.62), 0, 6.2832); ctx.stroke();
-    ctx.fillStyle = g.renk;
-    ctx.font = "700 " + Math.round(g.boy * 0.46) + "px " + BASLIK_FONT;
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText(g.ad, mx, my);
-    ctx.textBaseline = "alphabetic";
+    if (adlar[i] === "w") {
+      // takla = dönme oku simgesi
+      var rr = g.boy * 0.24;
+      ctx.strokeStyle = g.renk; ctx.lineWidth = g.boy * 0.10; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.arc(mx, my, rr, Math.PI * 0.55, Math.PI * 2.05); ctx.stroke();
+      var okA = Math.PI * 0.55;
+      var ox = mx + Math.cos(okA) * rr, oy = my + Math.sin(okA) * rr;
+      ctx.fillStyle = g.renk;
+      ctx.beginPath();
+      ctx.moveTo(ox - g.boy * 0.11, oy - g.boy * 0.02);
+      ctx.lineTo(ox + g.boy * 0.05, oy + g.boy * 0.03);
+      ctx.lineTo(ox - g.boy * 0.02, oy + g.boy * 0.15);
+      ctx.closePath(); ctx.fill();
+    } else {
+      ctx.fillStyle = g.renk;
+      ctx.font = "700 " + Math.round(g.boy * 0.46) + "px " + BASLIK_FONT;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(g.ad, mx, my);
+      ctx.textBaseline = "alphabetic";
+    }
     ctx.restore();
   }
 }
