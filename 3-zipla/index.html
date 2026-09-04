@@ -5,6 +5,13 @@
 <title>Zıplayan Kedi</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#1b2a4a">
+<meta name="description" content="Yerçekimi + zıplama platform oyunu, troll tuzaklarla!">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="simgeler/simge-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="simgeler/simge-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@700;800&display=swap">
 <style>
   body {
@@ -834,6 +841,16 @@ function dongu() {
 bolumuKur(0);
 durum = "menu";
 dongu();
+</script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("sw.js").catch(function (e) {
+      console.log("sw kaydedilemedi (file:// normal):", e.message);
+    });
+  });
+}
 </script>
 
 </body>
