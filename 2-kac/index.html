@@ -40,7 +40,7 @@
 <div id="sahne">
   <canvas id="ekran" width="800" height="600"></canvas>
 </div>
-<p>&larr; &rarr; &uarr; &darr; her yöne kaç &nbsp;·&nbsp; <b>X</b> çakra topu &nbsp;·&nbsp; <b>C</b> kuyruk savur &nbsp;·&nbsp; BOŞLUK duraklat &nbsp;·&nbsp; F tam ekran &nbsp;·&nbsp; M ses</p>
+<p>&larr; &rarr; &uarr; &darr; her yöne kaç &nbsp;·&nbsp; <b>W</b> takla &nbsp;·&nbsp; <b>X</b> çakra topu &nbsp;·&nbsp; <b>C</b> kuyruk savur &nbsp;·&nbsp; BOŞLUK duraklat &nbsp;·&nbsp; F tam ekran &nbsp;·&nbsp; M ses</p>
 
 <script>
 // ===========================================================
@@ -87,6 +87,10 @@ var KUYRUK_MENZIL  = 120;   // C ile kuyruk savurma menzili (yakın dövüş)
 var DOKUNMATIK_DUGME_BOY = 74;
 var DOKUNMATIK_KENAR     = 26;
 var KUYRUK_BEKLE   = 48;    // Kuyruk savurma kaç karede bir
+
+// TAKLA (W) — kaçış: kedi döner ve o an dokunulmaz olur
+var TAKLA_SURESI  = 30;
+var TAKLA_BEKLEME = 38;
 var KUYRUK_HASAR   = 2;     // Kuyruk savurma kaç can götürsün
 
 var EZILME_GUCU    = 0.30;  // Squash & stretch gücü
@@ -255,7 +259,8 @@ function oyunuBaslat() {
     basKalk: 0, basAci: 0, bakisX: 0, bakisY: 0,
     ezilme: 0, ezilmeHiz: 0, egim: 0,
     gozKirp: 0, kirpSayaci: 90,
-    iz: []
+    iz: [],
+    takla: 0, taklaBekle: 0, taklaYon: 1
   };
   meteorlar = []; cakralar = []; parcaciklar = []; yazilar = []; halkalar = [];
   can = CAN_BASLANGIC;
@@ -270,6 +275,16 @@ function oyunuBaslat() {
 }
 
 function kediyiEz(guc) { kedi.ezilme = guc; kedi.ezilmeHiz = 0; }
+function taklaAt() {
+  if (kedi.takla > 0 || kedi.taklaBekle > 0) return;
+  kedi.takla = TAKLA_SURESI;
+  kedi.taklaBekle = TAKLA_SURESI + TAKLA_BEKLEME;
+  kedi.taklaYon = kedi.vx >= 0 ? 1 : -1;
+  dokunulmaz = Math.max(dokunulmaz, TAKLA_SURESI);   // takla boyunca meteor/boss zarar veremez
+  kediyiEz(0.18);
+  ton(520, 0.10, "sine", 0.13, 1000);
+  ton(920, 0.10, "sine", 0.10, 1350, 0.05);
+}
 function meteorHizi() { return METEOR_HIZI + (bolum - 1) * BOLUM_HIZLANMA; }
 function meteorSikligi() { return Math.max(14, METEOR_SIKLIGI - (bolum - 1) * 4); }
 function dokuzKuyrukModu() { return evrimSayac > 0; }
@@ -811,6 +826,7 @@ document.addEventListener("keydown", function (e) {
   tuslar[e.key] = true;
   sesiUyandir();
   if (e.repeat) return;
+  if ((e.key === "w" || e.key === "W") && durum === "oyun") { e.preventDefault(); taklaAt(); }
   if (e.key === " " || e.key === "Enter") {
     e.preventDefault();
     if (durum === "menu")          { oyunuBaslat(); sesBolum(); }
@@ -841,12 +857,13 @@ document.addEventListener("keyup", function (e) { tuslar[e.key] = false; });
 function dokunmaDugmeleri() {
   var b = DOKUNMATIK_DUGME_BOY, k = DOKUNMATIK_KENAR;
   return {
+    w: { ad: "W", x: GENISLIK - k - b * 3.7,  y: YUKSEKLIK - k - b, boy: b, renk: "#8fd14f" },
     x: { ad: "X", x: GENISLIK - k - b * 2.35, y: YUKSEKLIK - k - b, boy: b, renk: "#6fd8ff" },
     c: { ad: "C", x: GENISLIK - k - b,        y: YUKSEKLIK - k - b, boy: b, renk: "#ffd84d" }
   };
 }
 function dugmeyeMiBasildi(nokta) {
-  var dm = dokunmaDugmeleri(), adlar = ["x", "c"];
+  var dm = dokunmaDugmeleri(), adlar = ["w", "x", "c"];
   for (var i = 0; i < adlar.length; i++) {
     var g = dm[adlar[i]], mx = g.x + g.boy / 2, my = g.y + g.boy / 2;
     var dx = nokta.x - mx, dy = nokta.y - my;
@@ -868,6 +885,7 @@ ekran.addEventListener("touchstart", function (e) {
   if (durum === "bitti")    { oyunuBaslat(); return; }
   if (durum === "duraklat") { durum = "oyun"; sesDevam(); return; }
   var dugme = dugmeyeMiBasildi(nokta);
+  if (dugme === "w") { basiliDugme = "w"; taklaAt(); return; }
   if (dugme === "x") { basiliDugme = "x"; if (topBekleme <= 0) topAt(); return; }
   if (dugme === "c") { basiliDugme = "c"; if (kuyrukBekleme <= 0 && kuyrukSaldiri <= 0) kuyrukSavurBasla(); return; }
   dokunmatikHedef = nokta;
@@ -884,10 +902,10 @@ ekran.addEventListener("touchcancel", function () { basiliDugme = null; dokunmat
 
 function dokunmaDugmeleriniCiz() {
   if (!dokunmatikVar || durum !== "oyun") return;
-  var dm = dokunmaDugmeleri(), adlar = ["x", "c"];
+  var dm = dokunmaDugmeleri(), adlar = ["w", "x", "c"];
   for (var i = 0; i < adlar.length; i++) {
     var g = dm[adlar[i]], mx = g.x + g.boy / 2, my = g.y + g.boy / 2;
-    var bekliyor = (adlar[i] === "x") ? topBekleme > 0 : (kuyrukBekleme > 0 || kuyrukSaldiri > 0);
+    var bekliyor = adlar[i] === "x" ? topBekleme > 0 : (adlar[i] === "c" ? (kuyrukBekleme > 0 || kuyrukSaldiri > 0) : kedi.taklaBekle > 0);
     var basili = (basiliDugme === adlar[i]);
     ctx.save();
     ctx.globalAlpha = bekliyor ? 0.3 : (basili ? 0.95 : 0.62);
@@ -1761,6 +1779,8 @@ function oyunDongusu() {
   if (durum === "oyun" && !donuyor) {
     sure++;
     if (dokunulmaz > 0) dokunulmaz--;
+    if (kedi.takla > 0) kedi.takla--;
+    if (kedi.taklaBekle > 0) kedi.taklaBekle--;
 
     // DOKUZ KUYRUK MODU sayacı
     if (evrimSayac > 0) {
@@ -1785,7 +1805,7 @@ function oyunDongusu() {
     var gx = 0, gy = 0;
     if (tuslar["ArrowLeft"]  || tuslar["a"] || tuslar["A"]) gx -= 1;
     if (tuslar["ArrowRight"] || tuslar["d"] || tuslar["D"]) gx += 1;
-    if (tuslar["ArrowUp"]    || tuslar["w"] || tuslar["W"]) gy -= 1;
+    if (tuslar["ArrowUp"]) gy -= 1;   // W artık TAKLA; yukarı = yukarı ok
     if (tuslar["ArrowDown"]  || tuslar["s"] || tuslar["S"]) gy += 1;
     if (dokunmatikHedef) {   // parmakla sürükleme: kedi parmağa doğru uçar
       var ddx = dokunmatikHedef.x - kedi.x, ddy = dokunmatikHedef.y - kedi.y;
@@ -1998,7 +2018,13 @@ function oyunDongusu() {
     if (boss) bossuCiz();
     toplariCiz();
 
+    ctx.save();
+    if (kedi.takla > 0) {
+      var takAci = (1 - kedi.takla / TAKLA_SURESI) * 6.2832 * (kedi.taklaYon || 1);
+      ctx.translate(kedi.x, kedi.y); ctx.rotate(takAci); ctx.translate(-kedi.x, -kedi.y);
+    }
     kediyiCiz();
+    ctx.restore();
     dokunmaDugmeleriniCiz();
 
     ctx.textAlign = "center";
