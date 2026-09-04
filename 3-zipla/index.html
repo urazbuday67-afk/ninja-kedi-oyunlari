@@ -57,6 +57,9 @@ var TAVAN_BOY       = 46;    // düşen tavan bloğunun yüksekliği
 var FIRLAMA_HIZ     = 7;     // fırlayan diken ne hızlı çıksın
 var FIRLAMA_YUK     = 54;    // fırlayan diken ne kadar yükselsin
 var FIRLAMA_MENZIL  = 70;    // oyuncu ne kadar yaklaşınca fırlasın
+var TESTERE_HIZ     = 0.3;   // dönen testere ne hızlı dönsün (görsel)
+var BAYRAK_KACMA    = 150;   // kaçan bayrak her seferinde ne kadar kaçsın
+var BAYRAK_KAC_HAK  = 2;     // kaçan bayrak kaç kez kaçsın
 
 var YAPIMCI_1      = "Uraz Buday";
 var YAPIMCI_2      = "Çağlar Buday";
@@ -92,6 +95,7 @@ var BOLUMLER = [
     ],
     tuzaklar: [
       ["firlayan", 560, 500, 70],     // ilk platformda: sürpriz fırlayan diken
+      ["testere", 1180, 340, 26],     // 1080 platformu üstünde dönen testere
       ["diken", 1480, 460, 80]        // son platformda: zıplayarak geç
     ]
   },
@@ -128,14 +132,17 @@ var BOLUMLER = [
       [1660, 400, 150],
       [1900, 460, 160, "sahte"],
       [2150, 430, 150],
-      [2380, 470, 460]
+      [2380, 470, 760]
     ],
+    kacan: true,
     tuzaklar: [
       ["firlayan", 400, 470, 80],
       ["diken", 660, 430, 70],
       ["tavan", 1180, 120, 100],
+      ["testere", 1300, 440, 26],
       ["diken", 1420, 470, 90],
       ["tavan", 1720, 110, 90],
+      ["testere", 2050, 400, 28],
       ["firlayan", 2200, 430, 80],
       ["diken", 2440, 470, 80]
     ]
@@ -212,6 +219,9 @@ var aktifPlatformlar = [];
 var aktifTuzaklar = [];
 var sarsinti = 0;
 function sarsintiVer(g) { sarsinti = Math.max(sarsinti, g); }
+var bayrakX = 0, kacmaHak = 0;
+var yuzenYazi = null;
+function yazilarGoster(m) { yuzenYazi = { metin: m, omur: 70, y: 200 }; }
 
 function bolumuKur(no) {
   var b = BOLUMLER[no];
@@ -221,6 +231,7 @@ function bolumuKur(no) {
   aktifTuzaklar = (b.tuzaklar || []).map(function (t) {
     return { tip: t[0], x: t[1], y: t[2], g: t[3], dusuyor: false, dy: t[2], dvy: 0, firladi: false, yuk: 0 };
   });
+  bayrakX = b.bayrak; kacmaHak = b.kacan ? BAYRAK_KAC_HAK : 0;
   oyuncu = {
     x: b.baslangic.x, y: b.baslangic.y,
     vx: 0, vy: 0, yerde: false, ciftHak: false,
@@ -408,10 +419,19 @@ function fizik() {
       if (tz.firladi && tz.yuk < FIRLAMA_YUK) tz.yuk += FIRLAMA_HIZ;
       if (tz.yuk > 4 && carpisti(tz.x, tz.y - tz.yuk, tz.g, tz.yuk)) { oldur(); return; }
     }
+    else if (tz.tip === "testere") {
+      var sdx = oyuncu.x - tz.x, sdy = oyuncu.y - tz.y;
+      if (Math.sqrt(sdx * sdx + sdy * sdy) < tz.g + yariB * 0.55) { oldur(); return; }
+    }
   }
 
-  // bayrak
-  if (oyuncu.x >= suankiBolum().bayrak) {
+  // bayrak (kaçan bayrak: yaklaşınca kaçar!)
+  if (kacmaHak > 0 && oyuncu.x > bayrakX - 240) {
+    bayrakX += BAYRAK_KACMA; kacmaHak--; bayrakSalla += 2;
+    ton(300, 0.12, "square", 0.12, 600); ton(500, 0.10, "square", 0.10, 800, 0.06);
+    yazilarGoster("HAHA! YAKALA!");
+  }
+  if (oyuncu.x >= bayrakX) {
     sesBayrak();
     if (bolumNo + 1 < BOLUMLER.length) {
       bolumNo++; if (bolumNo + 1 > enIyiBolum) { enIyiBolum = bolumNo + 1; kaydet(); }
@@ -536,6 +556,22 @@ function tuzaklariCiz() {
       if (t.yuk > 1) ucgenDikenler(x, t.y, t.g, t.yuk, "#e08a3a", "#a85a1a");
       else { ctx.fillStyle = "rgba(180,120,60,0.35)"; ctx.fillRect(x, t.y - 3, t.g, 3); }
     }
+    else if (t.tip === "testere") {
+      var aci = sayac * TESTERE_HIZ;
+      ctx.save(); ctx.translate(x, t.y); ctx.rotate(aci);
+      ctx.fillStyle = "#c9d2e0";
+      for (var dsi = 0; dsi < 12; dsi++) {
+        var a = (dsi / 12) * 6.2832;
+        ctx.beginPath(); ctx.moveTo(Math.cos(a) * t.g, Math.sin(a) * t.g);
+        ctx.lineTo(Math.cos(a + 0.26) * (t.g + 8), Math.sin(a + 0.26) * (t.g + 8));
+        ctx.lineTo(Math.cos(a + 0.52) * t.g, Math.sin(a + 0.52) * t.g);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.beginPath(); ctx.arc(0, 0, t.g, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = "#8a95a8"; ctx.beginPath(); ctx.arc(0, 0, t.g * 0.55, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = "#e05555"; ctx.beginPath(); ctx.arc(0, 0, t.g * 0.18, 0, 6.2832); ctx.fill();
+      ctx.restore();
+    }
   }
 }
 
@@ -543,13 +579,13 @@ function tuzaklariCiz() {
 //   BAYRAK
 // ===========================================================
 function bayragiCiz() {
-  var bx = suankiBolum().bayrak - kameraX;
+  var bx = bayrakX - kameraX;
   if (bx < -60 || bx > GENISLIK + 60) return;
   var taban = 500;
   // direği zemine oturt (en yakın platform üstü)
   for (var i = 0; i < aktifPlatformlar.length; i++) {
     var p = aktifPlatformlar[i];
-    if (suankiBolum().bayrak >= p.x && suankiBolum().bayrak <= p.x + p.g) { taban = p.y; break; }
+    if (bayrakX >= p.x && bayrakX <= p.x + p.g) { taban = p.y; break; }
   }
   ctx.strokeStyle = "#dfe6f2"; ctx.lineWidth = 5; ctx.lineCap = "round";
   ctx.beginPath(); ctx.moveTo(bx, taban); ctx.lineTo(bx, taban - 130); ctx.stroke();
@@ -637,7 +673,7 @@ function bilgileriCiz() {
     ctx.globalAlpha = 1;
   }
   // ilerleme
-  var oran = Math.max(0, Math.min(1, oyuncu.x / suankiBolum().bayrak));
+  var oran = Math.max(0, Math.min(1, oyuncu.x / bayrakX));
   camPanel(GENISLIK - 234, 18, 216, 40, 16);
   ctx.fillStyle = "rgba(255,255,255,0.12)";
   ctx.beginPath(); ctx.roundRect(GENISLIK - 218, 32, 184, 12, 6); ctx.fill();
@@ -656,6 +692,15 @@ function bilgileriCiz() {
     ctx.shadowColor = "#3a5bbf"; ctx.shadowBlur = 24;
     ctx.fillText("BÖLÜM " + (bolumNo + 1), GENISLIK / 2, 190);
     ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+  }
+  if (yuzenYazi) {
+    yuzenYazi.y -= 0.6; yuzenYazi.omur--;
+    ctx.textAlign = "center"; ctx.globalAlpha = Math.min(1, yuzenYazi.omur / 30);
+    ctx.font = "700 30px " + BASLIK_FONT; ctx.fillStyle = "#ff6a8a";
+    ctx.shadowColor = "#000"; ctx.shadowBlur = 8;
+    ctx.fillText(yuzenYazi.metin, GENISLIK / 2, yuzenYazi.y);
+    ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+    if (yuzenYazi.omur <= 0) yuzenYazi = null;
   }
 }
 
