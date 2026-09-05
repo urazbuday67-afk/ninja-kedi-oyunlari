@@ -41,10 +41,10 @@
 // ===========================================================
 //   AYARLAR — bu sayıları değiştir, kaydet, F5'e bas!
 // ===========================================================
-var YERCEKIMI      = 0.75;   // Karakter ne kadar hızlı düşsün
+var YERCEKIMI      = 0.68;   // Karakter ne kadar hızlı düşsün (daha yumuşak)
 var ZIPLAMA_GUCU   = 15;     // Zıplayınca ne kadar yükselsin
-var YATAY_HIZ      = 5.2;    // Sağa-sola ne kadar hızlı gitsin
-var HAVADA_KONTROL = 0.75;   // Havadayken yön değiştirme gücü (1 = yerdeki kadar)
+var YATAY_HIZ      = 4.2;    // Sağa-sola ne kadar hızlı gitsin (yavaşlatıldı, kontrol kolay)
+var HAVADA_KONTROL = 0.95;   // Havadayken yön değiştirme gücü (havada dönmek kolay)
 var CIFT_ZIPLAMA   = true;   // Havada bir kez daha zıplayabilsin mi?
 var KATSAYI_EZILME = 0.16;   // Zıplarken/inince squash & stretch gücü
 
@@ -359,7 +359,7 @@ function fizik() {
   if (tuslar["ArrowLeft"] || tuslar["a"] || tuslar["A"] || solBasili) yon -= 1;
   if (tuslar["ArrowRight"] || tuslar["d"] || tuslar["D"] || sagBasili) yon += 1;
   var kontrol = oyuncu.yerde ? 1 : HAVADA_KONTROL;
-  oyuncu.vx = karistir(oyuncu.vx, yon * YATAY_HIZ, 0.25 * kontrol);
+  oyuncu.vx = karistir(oyuncu.vx, yon * YATAY_HIZ, 0.34 * kontrol);   // çabuk dur (kayma az)
   if (yon !== 0) oyuncu.bakis = yon;
 
   // yerçekimi
@@ -631,29 +631,49 @@ function karakteriCiz() {
   ctx.translate(x, y);
   ctx.scale(ex, ey);
 
-  // gövde (yuvarlak köşeli kare)
+  // gövde (yuvarlak köşeli kare) — daha koyu, keskin renk
   var gr = ctx.createLinearGradient(0, -b * 0.5, 0, b * 0.5);
-  gr.addColorStop(0, "#ffb64d"); gr.addColorStop(1, "#f0872e");
+  gr.addColorStop(0, "#ff9a34"); gr.addColorStop(0.55, "#e8641a"); gr.addColorStop(1, "#b83c0c");
   ctx.fillStyle = gr;
-  ctx.beginPath(); ctx.roundRect(-b * 0.42, -b * 0.42, b * 0.84, b * 0.84, b * 0.24); ctx.fill();
-  // kenar
-  ctx.strokeStyle = "#c96a1e"; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.roundRect(-b * 0.42, -b * 0.42, b * 0.84, b * 0.84, b * 0.24); ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(-b * 0.42, -b * 0.42, b * 0.84, b * 0.84, b * 0.20); ctx.fill();
+  // koyu kenar
+  ctx.strokeStyle = "#7a2606"; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(-b * 0.42, -b * 0.42, b * 0.84, b * 0.84, b * 0.20); ctx.stroke();
+  // üstte parlaklık (hacim)
+  ctx.fillStyle = "rgba(255,255,255,0.12)";
+  ctx.beginPath(); ctx.roundRect(-b * 0.34, -b * 0.36, b * 0.68, b * 0.22, b * 0.12); ctx.fill();
 
-  // gözler (bakış yönüne kayar)
-  var bx = oyuncu.bakis * b * 0.07;
+  var bx = oyuncu.bakis * b * 0.06;
   var kirp = oyuncu.gozKirp > 0;
-  for (var g = -1; g <= 1; g += 2) {
-    ctx.fillStyle = "#fff";
-    ctx.beginPath(); ctx.ellipse(g * b * 0.17 + bx * 0.4, -b * 0.06, b * 0.13, kirp ? b * 0.03 : b * 0.16, 0, 0, 6.2832); ctx.fill();
-    if (!kirp) {
-      ctx.fillStyle = "#1a1420";
-      ctx.beginPath(); ctx.ellipse(g * b * 0.17 + bx, -b * 0.04, b * 0.06, b * 0.09, 0, 0, 6.2832); ctx.fill();
-    }
+
+  // çatık kaşlar (ciddi / kararlı ifade)
+  ctx.strokeStyle = "#5c1e04"; ctx.lineWidth = b * 0.06; ctx.lineCap = "round";
+  for (var kg = -1; kg <= 1; kg += 2) {
+    ctx.beginPath();
+    ctx.moveTo(kg * b * 0.30 + bx * 0.5, -b * 0.24);
+    ctx.lineTo(kg * b * 0.07 + bx * 0.5, -b * 0.15);
+    ctx.stroke();
   }
-  // ağız (küçük)
-  ctx.strokeStyle = "#8a4a16"; ctx.lineWidth = 2; ctx.lineCap = "round";
-  ctx.beginPath(); ctx.arc(bx, b * 0.16, b * 0.10, 0.15, Math.PI - 0.15); ctx.stroke();
+
+  // gözler (küçük, keskin, hafif eğik — cool bakış)
+  for (var g = -1; g <= 1; g += 2) {
+    ctx.save();
+    ctx.translate(g * b * 0.18 + bx * 0.4, -b * 0.02);
+    ctx.rotate(g * -0.18);
+    ctx.fillStyle = "#f4f7ff";
+    ctx.beginPath(); ctx.ellipse(0, 0, b * 0.11, kirp ? b * 0.02 : b * 0.115, 0, 0, 6.2832); ctx.fill();
+    if (!kirp) {
+      ctx.fillStyle = "#161018";
+      ctx.beginPath(); ctx.ellipse(g * b * 0.02 + oyuncu.bakis * b * 0.03, 0, b * 0.058, b * 0.085, 0, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.beginPath(); ctx.arc(g * b * 0.02 - b * 0.02, -b * 0.03, b * 0.02, 0, 6.2832); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // ağız (düz, kısa — nötr/ciddi)
+  ctx.strokeStyle = "#5c1e04"; ctx.lineWidth = b * 0.05; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(bx - b * 0.09, b * 0.17); ctx.lineTo(bx + b * 0.09, b * 0.17); ctx.stroke();
 
   ctx.restore();
 }
