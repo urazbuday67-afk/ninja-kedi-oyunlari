@@ -28,6 +28,15 @@
   #sahne { display: flex; align-items: center; justify-content: center; }
   #sahne:fullscreen, #sahne:-webkit-full-screen { width: 100vw; height: 100vh; background: #0a0f1e; }
   #sahne:fullscreen canvas, #sahne:-webkit-full-screen canvas { border-radius: 0; box-shadow: none; }
+  /* --- MOBİL: tuval tüm ekranı kaplar --- */
+  html, body { height: 100%; }
+  body { height: 100vh; height: 100dvh; touch-action: none; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+  canvas { touch-action: none; }
+  @media (max-width: 820px), (pointer: coarse) {
+    body { padding: 0; }
+    p, #ipucu { display: none; }
+    canvas { border-radius: 0; box-shadow: none; }
+  }
 </style>
 </head>
 <body>
@@ -35,7 +44,7 @@
 <div id="sahne">
   <canvas id="ekran" width="800" height="600"></canvas>
 </div>
-<p>&larr; &rarr; hareket &nbsp;·&nbsp; BOŞLUK / W / &uarr; zıpla &nbsp;·&nbsp; F tam ekran &nbsp;·&nbsp; M ses</p>
+<p id="ipucu">&larr; &rarr; hareket &nbsp;·&nbsp; BOŞLUK / W / &uarr; zıpla &nbsp;·&nbsp; F tam ekran &nbsp;·&nbsp; M ses</p>
 
 <script>
 // ===========================================================
@@ -47,9 +56,12 @@ var YATAY_HIZ      = 4.2;    // Sağa-sola ne kadar hızlı gitsin (yavaşlatıl
 var HAVADA_KONTROL = 0.95;   // Havadayken yön değiştirme gücü (havada dönmek kolay)
 var CIFT_ZIPLAMA   = true;   // Havada bir kez daha zıplayabilsin mi?
 var KATSAYI_EZILME = 0.16;   // Zıplarken/inince squash & stretch gücü
+var KOYOT_KARE     = 7;      // Platformdan düştükten sonra kaç kare daha zıplayabilsin
+var TAMPON_KARE    = 7;      // Yere inmeden kaç kare önce basılan zıplama sayılsın
+var KISA_ZIPLAMA   = 0.42;   // Tuşu erken bırakınca zıplamanın ne kadarı kalsın (1 = kapalı)
 
 var BOYUT          = 44;     // Karakterin büyüklüğü
-var CAN_BASLANGIC  = 3;      // Kaç canla başlasın
+var CAN_BASLANGIC  = 0;      // 0 = sınırsız deneme (Level Devil gibi, ölüm sayılır). 3 yazarsan can sistemi geri gelir
 
 var KAMERA_KAYMA   = 0.35;   // Karakter ekranın ne kadar solunda dursun (0.5 = orta)
 var OLUM_DERINLIGI = 260;    // Ekranın altından ne kadar sonra ölsün
@@ -67,6 +79,8 @@ var FIRLAMA_MENZIL  = 70;    // oyuncu ne kadar yaklaşınca fırlasın
 var TESTERE_HIZ     = 0.3;   // dönen testere ne hızlı dönsün (görsel)
 var BAYRAK_KACMA    = 150;   // kaçan bayrak her seferinde ne kadar kaçsın
 var BAYRAK_KAC_HAK  = 2;     // kaçan bayrak kaç kez kaçsın
+var BAYRAK_KAC_BEKLE = 30;   // iki kaçış arasında en az kaç kare geçsin
+var FIRLAMA_DIKEY   = 130;   // fırlayan diken, oyuncu dikeyde bu kadar yakınsa tetiklensin
 
 var YAPIMCI_1      = "Uraz Buday";
 var YAPIMCI_2      = "Çağlar Buday";
@@ -153,20 +167,100 @@ var sahne = document.getElementById("sahne");
 function tamEkranMi() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
 function tamEkranDegistir() {
   try {
-    if (!tamEkranMi()) { var a = sahne.requestFullscreen || sahne.webkitRequestFullscreen; if (a) a.call(sahne); }
+    if (!tamEkranMi()) {
+      var a = sahne.requestFullscreen || sahne.webkitRequestFullscreen;
+      if (a) { var s = a.call(sahne); if (s && s.then) s.then(yatayKilitle, function () {}); else setTimeout(yatayKilitle, 300); }
+    }
     else { var k = document.exitFullscreen || document.webkitExitFullscreen; if (k) k.call(document); }
   } catch (e) {}
 }
-function olcuAyarla() {
-  var tam = tamEkranMi();
-  var enB = tam ? window.innerWidth : Math.min(window.innerWidth - 24, 960);
-  var enY = tam ? window.innerHeight : Math.min(window.innerHeight - 90, 720);
-  var olcek = Math.min(enB / GENISLIK, enY / YUKSEKLIK);
-  ekran.style.width = (GENISLIK * olcek) + "px";
-  ekran.style.height = (YUKSEKLIK * olcek) + "px";
+
+// ===========================================================
+//   MOBİL MOTOR (üç oyunda ortak)
+//   - Telefonda tuval tüm ekranı kaplar; en-boy oranına göre oyun alanı genişler
+//     (800 px yerine 800–1300 px; yükseklik hep 600). Siyah bantlar yok.
+//   - Retina/yüksek DPI ekranda keskin çizim.
+//   - Tam ekrana geçince telefon yatay kilitlenir.
+//   - Eski tarayıcılarda roundRect yoksa ekler.
+// ===========================================================
+var mobilCihaz = (("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0);
+var EN_AZ_GENISLIK = 800, EN_COK_GENISLIK = 1300;
+if (!ctx.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function (x, y, g, yuk, r) {
+    if (typeof r !== "number") r = (r && r[0]) || 0;
+    r = Math.min(r, Math.abs(g) / 2, Math.abs(yuk) / 2);
+    this.moveTo(x + r, y);
+    this.arcTo(x + g, y, x + g, y + yuk, r);
+    this.arcTo(x + g, y + yuk, x, y + yuk, r);
+    this.arcTo(x, y + yuk, x, y, r);
+    this.arcTo(x, y, x + g, y, r);
+    this.closePath();
+    return this;
+  };
 }
-window.addEventListener("resize", olcuAyarla);
+function yatayKilitle() {
+  try {
+    if (screen.orientation && screen.orientation.lock) {
+      var p = screen.orientation.lock("landscape");
+      if (p && p.catch) p.catch(function () {});
+    }
+  } catch (e) {}
+}
+function hedefGenislik() {
+  if (!mobilCihaz && !tamEkranMi()) return EN_AZ_GENISLIK;
+  var g = window.innerWidth, y = window.innerHeight;
+  if (!g || !y) return EN_AZ_GENISLIK;
+  var oran = g / y; if (oran < 1) oran = 1 / oran;   // dikey tutuluyorsa yatay gibi hesapla
+  return Math.max(EN_AZ_GENISLIK, Math.min(EN_COK_GENISLIK, Math.round(YUKSEKLIK * oran)));
+}
+var sonDpr = 0;
+function olcuAyarla() {
+  var yeniG = hedefGenislik();
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (yeniG !== GENISLIK || dpr !== sonDpr) {
+    GENISLIK = yeniG; sonDpr = dpr;
+    ekran.width = Math.round(GENISLIK * dpr); ekran.height = Math.round(YUKSEKLIK * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (typeof olcuDegisti === "function") olcuDegisti();
+  }
+  var tam = tamEkranMi(), alanG, alanY;
+  if (tam || mobilCihaz) { alanG = window.innerWidth; alanY = window.innerHeight; }
+  else {
+    var ip = document.getElementById("ipucu");
+    var altBosluk = (ip && ip.offsetParent !== null) ? (ip.offsetHeight + 22) : 0;
+    alanG = window.innerWidth - 24; alanY = window.innerHeight - altBosluk - 24;
+  }
+  var olcek = Math.min(alanG / GENISLIK, alanY / YUKSEKLIK);
+  if (!tam && !mobilCihaz) olcek = Math.min(olcek, 1);   // masaüstünde gereksiz büyütme
+  ekran.style.width  = Math.round(GENISLIK * olcek) + "px";
+  ekran.style.height = Math.round(YUKSEKLIK * olcek) + "px";
+}
 document.addEventListener("fullscreenchange", olcuAyarla);
+document.addEventListener("webkitfullscreenchange", olcuAyarla);
+window.addEventListener("resize", olcuAyarla);
+window.addEventListener("orientationchange", function () { setTimeout(olcuAyarla, 150); });
+if (window.visualViewport) window.visualViewport.addEventListener("resize", olcuAyarla);
+
+// Tam ekran düğmesi (sağ üst) — telefonda görünür, menüde her zaman görünür
+function tamEkranButonu() { return { x: GENISLIK - 58, y: 70, boy: 34 }; }
+function tamEkranDugmesindeMi(n) {
+  var b = tamEkranButonu();
+  return n.x >= b.x - 10 && n.x <= b.x + b.boy + 10 && n.y >= b.y - 10 && n.y <= b.y + b.boy + 10;
+}
+function tamEkranDugmesiniCiz() {
+  if (!mobilCihaz && durum !== "menu") return;
+  var b = tamEkranButonu(), icerde = tamEkranMi();
+  ctx.save();
+  ctx.fillStyle = "rgba(12,18,34,0.72)";
+  ctx.beginPath(); ctx.roundRect(b.x - 6, b.y - 6, b.boy + 12, b.boy + 12, 12); ctx.fill();
+  ctx.translate(b.x + b.boy / 2, b.y + b.boy / 2);
+  ctx.strokeStyle = "#ffd75e"; ctx.lineWidth = 2.6; ctx.lineCap = "round";
+  var d = b.boy * 0.34, u = b.boy * 0.20, yon = icerde ? -1 : 1;
+  for (var sx = -1; sx <= 1; sx += 2) for (var sy = -1; sy <= 1; sy += 2) {
+    ctx.beginPath(); ctx.moveTo(sx * d + sx * u * yon, sy * d); ctx.lineTo(sx * d, sy * d); ctx.lineTo(sx * d, sy * d + sy * u * yon); ctx.stroke();
+  }
+  ctx.restore();
+}
 olcuAyarla();
 
 function fareKonumu(e) {
@@ -212,11 +306,15 @@ sesKapali = !!kayit.sesKapali;
 // ===========================================================
 var durum = "menu";     // menu | oyun | duraklat | bitti | kazandi
 var oyuncu, kameraX, bolumNo, can, sayac, olumSayac, bayrakSalla, bolumYazi, gecenKare;
+var olumSayisi = 0;        // bu oyunda toplam ölüm
+var secilenBolum = 1;      // menüde seçilen bölüm
+var bayrakBekle = 0;       // kaçan bayrak bekleme sayacı
 var aktifPlatformlar = [];
 var aktifTuzaklar = [];
 var sarsinti = 0;
 function sarsintiVer(g) { sarsinti = Math.max(sarsinti, g); }
 var bayrakX = 0, kacmaHak = 0;
+var koyot = 0, ziplaTamponu = 0, ziplaTusuBasili = false, bitisKilit = 0;
 var yuzenYazi = null;
 function yazilarGoster(m) { yuzenYazi = { metin: m, omur: 70, y: 200 }; }
 
@@ -228,17 +326,32 @@ function bolumuKur(no) {
   aktifTuzaklar = (b.tuzaklar || []).map(function (t) {
     return { tip: t[0], x: t[1], y: t[2], g: t[3], dusuyor: false, dy: t[2], dvy: 0, firladi: false, yuk: 0 };
   });
-  bayrakX = b.bayrak; kacmaHak = b.kacan ? BAYRAK_KAC_HAK : 0;
+  bayrakX = b.bayrak; kacmaHak = b.kacan ? BAYRAK_KAC_HAK : 0; bayrakBekle = 0;
   oyuncu = {
     x: b.baslangic.x, y: b.baslangic.y,
     vx: 0, vy: 0, yerde: false, ciftHak: false,
     bakis: 1, ezilme: 0, gozKirp: 0, kirpSayaci: 90
   };
+  koyot = 0; ziplaTamponu = 0;
   kameraX = 0; olumSayac = 0;
 }
-function oyunuBaslat() {
-  bolumNo = 0; can = CAN_BASLANGIC; sayac = 0; bayrakSalla = 0; bolumYazi = 90; gecenKare = 0;
-  bolumuKur(0); durum = "oyun";
+function oyunuBaslat(baslangicBolumu) {
+  bolumNo = baslangicBolumu || 0; can = CAN_BASLANGIC; sayac = 0; bayrakSalla = 0; bolumYazi = 90; gecenKare = 0;
+  olumSayisi = 0; parcaciklar.length = 0;
+  bolumuKur(bolumNo); durum = "oyun";
+}
+function menudenBaslat() { oyunuBaslat(secilenBolum - 1); sesBolum(); }
+function bolumSec(yon) {
+  var yeni = secilenBolum + yon;
+  if (yeni < 1 || yeni > Math.min(enIyiBolum, BOLUMLER.length)) return;
+  secilenBolum = yeni; ton(600 + yeni * 60, 0.08, "sine", 0.12);
+}
+function bayrakTabani() {
+  for (var i = 0; i < aktifPlatformlar.length; i++) {
+    var p = aktifPlatformlar[i];
+    if (bayrakX >= p.x && bayrakX <= p.x + p.g) return p.y;
+  }
+  return 500;
 }
 function suankiBolum() { return BOLUMLER[bolumNo]; }
 function oyuncuyuEz(g) { oyuncu.ezilme = g; }
@@ -247,13 +360,21 @@ function oyuncuyuEz(g) { oyuncu.ezilme = g; }
 //   KONTROLLER
 // ===========================================================
 var tuslar = {};
+// Zıplama isteği hemen uygulanmaz; "tampon"a yazılır ve fizik adımında değerlendirilir.
+// Böylece yere inmeden az önce basılan zıplama da sayılır (jump buffer).
 function ziplaBasla() {
   if (durum !== "oyun") return;
-  if (oyuncu.yerde) {
+  ziplaTamponu = TAMPON_KARE;
+  ziplaTusuBasili = true;
+}
+function ziplamayiUygula() {
+  if (ziplaTamponu <= 0) return;
+  if (oyuncu.yerde || koyot > 0) {
     oyuncu.vy = -ZIPLAMA_GUCU; oyuncu.yerde = false; oyuncu.ciftHak = CIFT_ZIPLAMA;
+    koyot = 0; ziplaTamponu = 0;
     oyuncuyuEz(-0.22); sesZipla();
   } else if (oyuncu.ciftHak) {
-    oyuncu.vy = -ZIPLAMA_GUCU * 0.88; oyuncu.ciftHak = false;
+    oyuncu.vy = -ZIPLAMA_GUCU * 0.88; oyuncu.ciftHak = false; ziplaTamponu = 0;
     oyuncuyuEz(-0.20); sesCiftZip();
     for (var i = 0; i < 8; i++) toz(oyuncu.x, oyuncu.y + BOYUT * 0.5);
   }
@@ -262,23 +383,29 @@ document.addEventListener("keydown", function (e) {
   tuslar[e.key] = true; sesiUyandir();
   if (e.key === " " || e.key === "Enter") {
     e.preventDefault();
-    if (durum === "menu") { oyunuBaslat(); sesBolum(); }
+    if (e.repeat) return;   // tuşu basılı tutmak çift zıplamayı yakmasın
+    if (durum === "menu") { menudenBaslat(); }
     else if (durum === "oyun") ziplaBasla();
     else if (durum === "duraklat") { durum = "oyun"; sesDevam(); }
-    else if (durum === "bitti" || durum === "kazandi") { oyunuBaslat(); }
+    else if ((durum === "bitti" || durum === "kazandi") && bitisKilit <= 0) { oyunuBaslat(); }
     return;
   }
   if (!e.repeat && (e.key === "w" || e.key === "W" || e.key === "ArrowUp")) { e.preventDefault(); ziplaBasla(); }
   if (e.key === "p" || e.key === "P") { if (durum === "oyun") { durum = "duraklat"; sesDurak(); } else if (durum === "duraklat") { durum = "oyun"; sesDevam(); } }
-  if ((e.key === "r" || e.key === "R") && durum !== "menu") oyunuBaslat();
+  if ((e.key === "r" || e.key === "R") && durum === "oyun") { bolumuKur(bolumNo); bolumYazi = 60; }
+  if (durum === "menu" && (e.key === "ArrowLeft" || e.key === "a" || e.key === "A")) bolumSec(-1);
+  if (durum === "menu" && (e.key === "ArrowRight" || e.key === "d" || e.key === "D")) bolumSec(1);
   if (e.key === "f" || e.key === "F") tamEkranDegistir();
   if (e.key === "m" || e.key === "M") { sesKapali = !sesKapali; kaydet(); if (!sesKapali) ton(800, 0.10, "sine", 0.15); }
   if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].indexOf(e.key) >= 0) e.preventDefault();
 });
-document.addEventListener("keyup", function (e) { tuslar[e.key] = false; });
+document.addEventListener("keyup", function (e) {
+  tuslar[e.key] = false;
+  if (e.key === " " || e.key === "w" || e.key === "W" || e.key === "ArrowUp") ziplaTusuBasili = false;
+});
 
 // ---- DOKUNMATİK ----
-var DOKUNMATIK_DUGME_BOY = 78, DOKUNMATIK_KENAR = 24;
+var DOKUNMATIK_DUGME_BOY = 96, DOKUNMATIK_KENAR = 34;   // büyük düğme, çentik payı
 var dokunmatikVar = (("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0);
 var solBasili = false, sagBasili = false, ziplaBasili = false;
 
@@ -290,13 +417,15 @@ function dokunmaDugmeleri() {
     zipla: { x: GENISLIK - k - b, y: YUKSEKLIK - k - b, boy: b, isaret: "⤒" }
   };
 }
+// Bölge mantığı: düğmeye tam basmak gerekmez.
+// Ekranın SAĞ yarısı = zıpla, SOL yarısı = yürü (sol/sağ düğmesinin hangisine yakınsa).
+// Üst 110 px (HUD ve tam ekran düğmesi) hariç.
 function noktaHangiDugme(n) {
-  var d = dokunmaDugmeleri(), adlar = ["sol", "sag", "zipla"];
-  for (var i = 0; i < adlar.length; i++) {
-    var g = d[adlar[i]], mx = g.x + g.boy / 2, my = g.y + g.boy / 2;
-    if (Math.sqrt((n.x - mx) * (n.x - mx) + (n.y - my) * (n.y - my)) < g.boy * 0.62) return adlar[i];
-  }
-  return null;
+  if (n.y < 110) return null;
+  if (n.x > GENISLIK / 2) return "zipla";
+  var d = dokunmaDugmeleri();
+  var sinir = (d.sol.x + d.sol.boy + d.sag.x) / 2;
+  return n.x < sinir ? "sol" : "sag";
 }
 function dokunusKonumu(t) {
   var k = ekran.getBoundingClientRect();
@@ -312,23 +441,35 @@ function dokunmalariIsle(dokunuslar) {
     else if (d === "zipla") yeniZipla = true;
   }
   if (yeniZipla && !ziplaBasili) ziplaBasla();
+  if (!yeniZipla && ziplaBasili) ziplaTusuBasili = false;
   ziplaBasili = yeniZipla;
 }
 ekran.addEventListener("touchstart", function (e) {
   dokunmatikVar = true; sesiUyandir(); e.preventDefault();
-  if (durum === "menu") { oyunuBaslat(); sesBolum(); return; }
+  var ilk = dokunusKonumu(e.changedTouches[0]);
+  if (tamEkranDugmesindeMi(ilk)) { tamEkranDegistir(); return; }
+  if (durum === "menu") { menuDokunus(ilk); return; }
   if (durum === "duraklat") { durum = "oyun"; sesDevam(); return; }
-  if (durum === "bitti" || durum === "kazandi") { oyunuBaslat(); return; }
+  if (durum === "bitti" || durum === "kazandi") { if (bitisKilit <= 0) oyunuBaslat(); return; }
   dokunmalariIsle(e.touches);
 }, { passive: false });
 ekran.addEventListener("touchmove", function (e) { e.preventDefault(); if (durum === "oyun") dokunmalariIsle(e.touches); }, { passive: false });
 ekran.addEventListener("touchend", function (e) { e.preventDefault(); if (durum === "oyun") dokunmalariIsle(e.touches); else { solBasili = sagBasili = ziplaBasili = false; } }, { passive: false });
 ekran.addEventListener("touchcancel", function () { solBasili = sagBasili = ziplaBasili = false; });
-ekran.addEventListener("click", function () {
+ekran.addEventListener("click", function (e) {
   sesiUyandir();
-  if (durum === "menu") { oyunuBaslat(); sesBolum(); }
-  else if (durum === "bitti" || durum === "kazandi") oyunuBaslat();
+  if (durum === "menu" && tamEkranDugmesindeMi(fareKonumu(e))) { tamEkranDegistir(); return; }
+  if (durum === "menu") { if (!dokunmatikVar) menudenBaslat(); }
+  else if ((durum === "bitti" || durum === "kazandi") && bitisKilit <= 0) oyunuBaslat();
 });
+function menuDokunus(n) {
+  if (!n) { menudenBaslat(); return; }
+  if (n.y > 500 && n.y < 560) {       // bölüm seçme satırı
+    if (n.x < GENISLIK / 2 - 80) { bolumSec(-1); return; }
+    if (n.x > GENISLIK / 2 + 80) { bolumSec(1); return; }
+  }
+  menudenBaslat();
+}
 
 // ===========================================================
 //   PARÇACIKLAR (toz)
@@ -358,10 +499,28 @@ function fizik() {
 
   var ayakOnce = oyuncu.y + yariB;   // düşmeden önceki ayak seviyesi
   oyuncu.x += oyuncu.vx;
-  oyuncu.y += oyuncu.vy;
 
   // sol duvar (bölüm başı)
   if (oyuncu.x < yariB) { oyuncu.x = yariB; oyuncu.vx = 0; }
+
+  // yan çarpışma: platformlar katı duvar. Ayak, platform üstünden 14 px'ten fazla aşağıdaysa içinden geçemezsin
+  var govdeYari = yariB * 0.7;
+  for (var yi = 0; yi < aktifPlatformlar.length; yi++) {
+    var pd = aktifPlatformlar[yi];
+    if (pd.gitti) continue;
+    if (ayakOnce > pd.y + 14 && oyuncu.x + govdeYari > pd.x && oyuncu.x - govdeYari < pd.x + pd.g) {
+      if (oyuncu.vx > 0) oyuncu.x = pd.x - govdeYari;
+      else if (oyuncu.vx < 0) oyuncu.x = pd.x + pd.g + govdeYari;
+      else { // durgunken içindeyse en yakın kenara it
+        var solMesafe = (oyuncu.x + govdeYari) - pd.x, sagMesafe = (pd.x + pd.g) - (oyuncu.x - govdeYari);
+        oyuncu.x = solMesafe < sagMesafe ? pd.x - govdeYari : pd.x + pd.g + govdeYari;
+      }
+      oyuncu.vx = 0;
+      if (oyuncu.x < yariB) oyuncu.x = yariB;
+    }
+  }
+
+  oyuncu.y += oyuncu.vy;
 
   // platform çarpışması (üstten inme)
   var oncedenYerde = oyuncu.yerde;
@@ -379,6 +538,13 @@ function fizik() {
       break;
     }
   }
+  // koyot süresi: kenardan yeni düştüysen kısa süre daha zıplayabilirsin
+  if (oyuncu.yerde) { koyot = KOYOT_KARE; oyuncu.ciftHak = CIFT_ZIPLAMA; }
+  else if (koyot > 0) koyot--;
+  if (ziplaTamponu > 0) { ziplamayiUygula(); ziplaTamponu--; }
+  // tuşu erken bırakırsan zıplama kısalır (yükseklik kontrolü)
+  if (!ziplaTusuBasili && oyuncu.vy < -ZIPLAMA_GUCU * KISA_ZIPLAMA) oyuncu.vy = -ZIPLAMA_GUCU * KISA_ZIPLAMA;
+
   // sahte blokların kırılma geri sayımı
   for (var sp = 0; sp < aktifPlatformlar.length; sp++) {
     var q = aktifPlatformlar[sp];
@@ -386,7 +552,7 @@ function fizik() {
       q.titre = Math.min(1, q.titre + 0.2);
       q.kirilma--;
       if (q.kirilma <= 0) {
-        q.gitti = true; sesOlum && ton(140, 0.18, "sawtooth", 0.16, 60);
+        q.gitti = true; ton(140, 0.18, "sawtooth", 0.16, 60);
         for (var kk = 0; kk < 12; kk++) { var pr = { x: q.x + Math.random() * q.g, y: q.y + 10, vx: (Math.random() - 0.5) * 5, vy: Math.random() * 3 + 1, omur: 30, boy: 3 + Math.random() * 4 }; parcaciklar.push(pr); }
       }
     }
@@ -410,7 +576,7 @@ function fizik() {
       }
     }
     else if (tz.tip === "firlayan") {
-      if (!tz.firladi && Math.abs(oyuncu.x - (tz.x + tz.g / 2)) < FIRLAMA_MENZIL) {
+      if (!tz.firladi && Math.abs(oyuncu.x - (tz.x + tz.g / 2)) < FIRLAMA_MENZIL && Math.abs(oyuncu.y - tz.y) < FIRLAMA_DIKEY) {
         tz.firladi = true; ton(1200, 0.14, "sawtooth", 0.14, 400); sarsintiVer(4);
       }
       if (tz.firladi && tz.yuk < FIRLAMA_YUK) tz.yuk += FIRLAMA_HIZ;
@@ -423,18 +589,21 @@ function fizik() {
   }
 
   // bayrak (kaçan bayrak: yaklaşınca kaçar!)
-  if (kacmaHak > 0 && oyuncu.x > bayrakX - 240) {
-    bayrakX += BAYRAK_KACMA; kacmaHak--; bayrakSalla += 2;
+  if (bayrakBekle > 0) bayrakBekle--;
+  if (kacmaHak > 0 && bayrakBekle <= 0 && oyuncu.x > bayrakX - 240) {
+    bayrakX += BAYRAK_KACMA; kacmaHak--; bayrakSalla += 2; bayrakBekle = BAYRAK_KAC_BEKLE;
     ton(300, 0.12, "square", 0.12, 600); ton(500, 0.10, "square", 0.10, 800, 0.06);
     yazilarGoster("HAHA! YAKALA!");
   }
-  if (oyuncu.x >= bayrakX) {
+  // bayrağa ulaşma: yatayda geçmiş VE direğin boyu hizasında olmalı (havadan uçarak geçmek sayılmaz)
+  var direkTaban = bayrakTabani();
+  if (oyuncu.x >= bayrakX && oyuncu.y + yariB > direkTaban - 140 && oyuncu.y - yariB < direkTaban + 10) {
     sesBayrak();
     if (bolumNo + 1 < BOLUMLER.length) {
       bolumNo++; if (bolumNo + 1 > enIyiBolum) { enIyiBolum = bolumNo + 1; kaydet(); }
       bolumuKur(bolumNo); bolumYazi = 90;
     } else {
-      durum = "kazandi"; enIyiBolum = BOLUMLER.length; kaydet();
+      durum = "kazandi"; bitisKilit = 40; enIyiBolum = BOLUMLER.length; kaydet();
     }
     return;
   }
@@ -444,9 +613,12 @@ function fizik() {
 }
 
 function oldur() {
-  can--;
-  sesOlum();
-  if (can <= 0) { durum = "bitti"; return; }
+  olumSayisi++;
+  sesOlum(); sarsintiVer(5);
+  if (CAN_BASLANGIC > 0) {
+    can--;
+    if (can <= 0) { durum = "bitti"; bitisKilit = 40; return; }
+  }
   bolumuKur(bolumNo);
 }
 
@@ -458,10 +630,13 @@ for (var i = 0; i < 60; i++) yildizlar.push({ x: Math.random() * 2400, y: Math.r
 var tepeler = [];
 for (var i = 0; i < 40; i++) tepeler.push({ x: i * 140, y: 470 + Math.sin(i * 1.3) * 30, g: 180 });
 
+var gokGradyani = null;   // her karede yeniden üretmek yerine bir kez
 function arkaPlaniCiz() {
-  var gk = ctx.createLinearGradient(0, 0, 0, YUKSEKLIK);
-  gk.addColorStop(0, "#21365c"); gk.addColorStop(0.6, "#162441"); gk.addColorStop(1, "#0a0f1e");
-  ctx.fillStyle = gk; ctx.fillRect(0, 0, GENISLIK, YUKSEKLIK);
+  if (!gokGradyani) {
+    gokGradyani = ctx.createLinearGradient(0, 0, 0, YUKSEKLIK);
+    gokGradyani.addColorStop(0, "#21365c"); gokGradyani.addColorStop(0.6, "#162441"); gokGradyani.addColorStop(1, "#0a0f1e");
+  }
+  ctx.fillStyle = gokGradyani; ctx.fillRect(0, 0, GENISLIK, YUKSEKLIK);
 
   // ay
   ctx.fillStyle = "#f4e8c8"; ctx.globalAlpha = 0.9;
@@ -501,11 +676,14 @@ function platformlariCiz() {
     if (x + g < -40 || x > GENISLIK + 40) continue;
     var kalin = YUKSEKLIK - y + 40;
     var kirilyor = pf.sahte && pf.tetik;
-    // toprak gövde
-    var gr = ctx.createLinearGradient(0, y, 0, y + 60);
-    if (kirilyor) { gr.addColorStop(0, "#a83a2a"); gr.addColorStop(1, "#5a1f18"); }
-    else { gr.addColorStop(0, "#7a5433"); gr.addColorStop(1, "#4a3320"); }
-    ctx.fillStyle = gr;
+    // toprak gövde (gradyan platform başına bir kez üretilir, y sabit)
+    if (!pf.grNormal) {
+      pf.grNormal = ctx.createLinearGradient(0, y, 0, y + 60);
+      pf.grNormal.addColorStop(0, "#7a5433"); pf.grNormal.addColorStop(1, "#4a3320");
+      pf.grKirik = ctx.createLinearGradient(0, y, 0, y + 60);
+      pf.grKirik.addColorStop(0, "#a83a2a"); pf.grKirik.addColorStop(1, "#5a1f18");
+    }
+    ctx.fillStyle = kirilyor ? pf.grKirik : pf.grNormal;
     ctx.fillRect(x, y + 8, g, kalin);
     // çim üst
     ctx.fillStyle = kirilyor ? "#e0603f" : "#5cc06a";
@@ -522,15 +700,17 @@ function platformlariCiz() {
 // ===========================================================
 //   TUZAKLAR ÇİZİMİ
 // ===========================================================
-function ucgenDikenler(x, y, g, yuk, renk, koyu) {
+// asagi = true ise dikenlerin ucu aşağı bakar (düşen tavanın altı için)
+function ucgenDikenler(x, y, g, yuk, renk, koyu, asagi) {
   var adet = Math.max(1, Math.round(g / 18));
   var bir = g / adet;
+  var uc = asagi ? y + yuk : y - yuk;
   for (var i = 0; i < adet; i++) {
     var dx = x + i * bir;
     ctx.fillStyle = renk;
-    ctx.beginPath(); ctx.moveTo(dx, y); ctx.lineTo(dx + bir / 2, y - yuk); ctx.lineTo(dx + bir, y); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(dx, y); ctx.lineTo(dx + bir / 2, uc); ctx.lineTo(dx + bir, y); ctx.closePath(); ctx.fill();
     ctx.fillStyle = koyu;
-    ctx.beginPath(); ctx.moveTo(dx + bir / 2, y - yuk); ctx.lineTo(dx + bir, y); ctx.lineTo(dx + bir * 0.7, y); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(dx + bir / 2, uc); ctx.lineTo(dx + bir, y); ctx.lineTo(dx + bir * 0.7, y); ctx.closePath(); ctx.fill();
   }
 }
 function tuzaklariCiz() {
@@ -541,13 +721,11 @@ function tuzaklariCiz() {
       ucgenDikenler(x, t.y, t.g, DIKEN_YUK, "#c9d2e0", "#8a95a8");
     }
     else if (t.tip === "tavan") {
-      var gr = ctx.createLinearGradient(0, t.dy, 0, t.dy + TAVAN_BOY);
-      gr.addColorStop(0, "#5a5060"); gr.addColorStop(1, "#2e2833");
-      ctx.fillStyle = gr;
+      ctx.fillStyle = "#463d4c";
       ctx.beginPath(); ctx.roundRect(x, t.dy, t.g, TAVAN_BOY, 6); ctx.fill();
       ctx.strokeStyle = "#7a7080"; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.roundRect(x, t.dy, t.g, TAVAN_BOY, 6); ctx.stroke();
-      ucgenDikenler(x + 4, t.dy + TAVAN_BOY + DIKEN_YUK, t.g - 8, DIKEN_YUK, "#c9d2e0", "#8a95a8");
+      ucgenDikenler(x + 4, t.dy + TAVAN_BOY, t.g - 8, DIKEN_YUK, "#c9d2e0", "#8a95a8", true);
     }
     else if (t.tip === "firlayan") {
       if (t.yuk > 1) ucgenDikenler(x, t.y, t.g, t.yuk, "#e08a3a", "#a85a1a");
@@ -600,6 +778,7 @@ function bayragiCiz() {
 // ===========================================================
 //   KARAKTER  (Level Devil tarzı: turuncu blok, gözler, squash&stretch)
 // ===========================================================
+var karakterGradyani = null;
 function karakteriCiz() {
   var x = oyuncu.x - kameraX, y = oyuncu.y;
   var ex = 1 + oyuncu.ezilme, ey = 1 - oyuncu.ezilme;
@@ -622,9 +801,11 @@ function karakteriCiz() {
   ctx.scale(ex, ey);
 
   // gövde (yuvarlak köşeli kare) — daha koyu, keskin renk
-  var gr = ctx.createLinearGradient(0, -b * 0.5, 0, b * 0.5);
-  gr.addColorStop(0, "#ff9a34"); gr.addColorStop(0.55, "#e8641a"); gr.addColorStop(1, "#b83c0c");
-  ctx.fillStyle = gr;
+  if (!karakterGradyani) {
+    karakterGradyani = ctx.createLinearGradient(0, -b * 0.5, 0, b * 0.5);
+    karakterGradyani.addColorStop(0, "#ff9a34"); karakterGradyani.addColorStop(0.55, "#e8641a"); karakterGradyani.addColorStop(1, "#b83c0c");
+  }
+  ctx.fillStyle = karakterGradyani;
   ctx.beginPath(); ctx.roundRect(-b * 0.42, -b * 0.42, b * 0.84, b * 0.84, b * 0.20); ctx.fill();
   // koyu kenar
   ctx.strokeStyle = "#7a2606"; ctx.lineWidth = 2.5;
@@ -682,12 +863,17 @@ function bilgileriCiz() {
   ctx.textAlign = "left";
   ctx.font = "800 13px " + YAZI_FONT; ctx.fillStyle = "#9fc0ff";
   ctx.fillText("BÖLÜM " + (bolumNo + 1) + " / " + BOLUMLER.length, 34, 40);
-  // canlar (kalp yerine karakter kafası)
-  for (var i = 0; i < CAN_BASLANGIC; i++) {
-    ctx.globalAlpha = i < can ? 1 : 0.25;
-    ctx.fillStyle = "#ffb64d";
-    ctx.beginPath(); ctx.roundRect(34 + i * 26, 50, 18, 18, 5); ctx.fill();
-    ctx.globalAlpha = 1;
+  if (CAN_BASLANGIC > 0) {
+    // canlar (kalp yerine karakter kafası)
+    for (var i = 0; i < CAN_BASLANGIC; i++) {
+      ctx.globalAlpha = i < can ? 1 : 0.25;
+      ctx.fillStyle = "#ffb64d";
+      ctx.beginPath(); ctx.roundRect(34 + i * 26, 50, 18, 18, 5); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  } else {
+    ctx.font = "700 13px " + YAZI_FONT; ctx.fillStyle = olumSayisi > 0 ? "#ff8a8a" : "#ffffff77";
+    ctx.fillText("💀 " + olumSayisi + " ölüm", 34, 66);
   }
   // ilerleme
   var oran = Math.max(0, Math.min(1, oyuncu.x / bayrakX));
@@ -705,18 +891,18 @@ function bilgileriCiz() {
 
   if (bolumYazi > 0) {
     ctx.textAlign = "center"; ctx.globalAlpha = Math.min(1, bolumYazi / 30);
-    ctx.font = "600 46px " + BASLIK_FONT; ctx.fillStyle = "#9fc0ff";
-    ctx.shadowColor = "#3a5bbf"; ctx.shadowBlur = 24;
-    ctx.fillText("BÖLÜM " + (bolumNo + 1), GENISLIK / 2, 190);
-    ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+    ctx.font = "600 46px " + BASLIK_FONT;
+    ctx.fillStyle = "#1b2a4a"; ctx.fillText("BÖLÜM " + (bolumNo + 1), GENISLIK / 2 + 3, 193);   // sahte gölge, blur yok
+    ctx.fillStyle = "#9fc0ff"; ctx.fillText("BÖLÜM " + (bolumNo + 1), GENISLIK / 2, 190);
+    ctx.globalAlpha = 1;
   }
   if (yuzenYazi) {
     yuzenYazi.y -= 0.6; yuzenYazi.omur--;
     ctx.textAlign = "center"; ctx.globalAlpha = Math.min(1, yuzenYazi.omur / 30);
-    ctx.font = "700 30px " + BASLIK_FONT; ctx.fillStyle = "#ff6a8a";
-    ctx.shadowColor = "#000"; ctx.shadowBlur = 8;
-    ctx.fillText(yuzenYazi.metin, GENISLIK / 2, yuzenYazi.y);
-    ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+    ctx.font = "700 30px " + BASLIK_FONT;
+    ctx.fillStyle = "#000"; ctx.fillText(yuzenYazi.metin, GENISLIK / 2 + 2, yuzenYazi.y + 2);
+    ctx.fillStyle = "#ff6a8a"; ctx.fillText(yuzenYazi.metin, GENISLIK / 2, yuzenYazi.y);
+    ctx.globalAlpha = 1;
     if (yuzenYazi.omur <= 0) yuzenYazi = null;
   }
 }
@@ -772,9 +958,16 @@ function menuyuCiz() {
   ctx.font = "600 22px " + BASLIK_FONT; ctx.fillStyle = "#0a1f10";
   ctx.fillText(dokunmatikVar ? "DOKUN · BAŞLA" : "BOŞLUK · BAŞLA", GENISLIK / 2, 460);
 
-  ctx.font = "700 13px " + YAZI_FONT; ctx.fillStyle = "#ffffff55";
-  ctx.fillText("En iyi bölüm: " + enIyiBolum + " / " + BOLUMLER.length, GENISLIK / 2, 520);
-  ctx.fillText(dokunmatikVar ? "◀ ▶ yürü · ⤒ zıpla" : "← → yürü · BOŞLUK/W/↑ zıpla · F tam ekran", GENISLIK / 2, 548);
+  // bölüm seçici
+  var enUst = Math.min(enIyiBolum, BOLUMLER.length);
+  ctx.font = "700 18px " + BASLIK_FONT;
+  ctx.fillStyle = secilenBolum > 1 ? "#ffffff" : "#ffffff22"; ctx.fillText("◀", GENISLIK / 2 - 110, 528);
+  ctx.fillStyle = secilenBolum < enUst ? "#ffffff" : "#ffffff22"; ctx.fillText("▶", GENISLIK / 2 + 110, 528);
+  ctx.fillStyle = "#ffd98a";
+  ctx.fillText("BÖLÜM " + secilenBolum + " / " + BOLUMLER.length, GENISLIK / 2, 528);
+  ctx.font = "700 12px " + YAZI_FONT; ctx.fillStyle = "#ffffff55";
+  ctx.fillText(enUst > 1 ? "açılan bölüm: " + enUst : "bölümleri geçtikçe seçim açılır", GENISLIK / 2, 550);
+  ctx.fillText(dokunmatikVar ? "sol yarı: yürü · sağ yarı: zıpla · sağ üst: tam ekran" : "← → yürü · BOŞLUK/W/↑ zıpla · F tam ekran · R bölümü baştan", GENISLIK / 2, 576);
 }
 
 function bitisEkraniCiz(kazandiMi) {
@@ -787,6 +980,7 @@ function bitisEkraniCiz(kazandiMi) {
   ctx.shadowBlur = 0;
   ctx.font = "600 22px " + BASLIK_FONT; ctx.fillStyle = "#fff";
   ctx.fillText(kazandiMi ? "Bütün bölümleri geçtin!" : "Bölüm " + (bolumNo + 1) + "'de takıldın", GENISLIK / 2, 300);
+  if (kazandiMi) { ctx.font = "700 16px " + YAZI_FONT; ctx.fillStyle = "#ffd98a"; ctx.fillText("Toplam ölüm: " + olumSayisi + (olumSayisi === 0 ? "  —  MÜKEMMEL!" : ""), GENISLIK / 2, 326); }
   ctx.font = "700 15px " + YAZI_FONT; ctx.fillStyle = "#9fc0ff";
   ctx.fillText(dokunmatikVar ? "Dokun · yeniden başla" : "BOŞLUK · yeniden başla", GENISLIK / 2, 350);
 }
@@ -794,8 +988,14 @@ function bitisEkraniCiz(kazandiMi) {
 // ===========================================================
 //   OYUN DÖNGÜSÜ
 // ===========================================================
-function dongu() {
+// Simülasyon her cihazda saniyede 60 adım çalışır; ekran 60 Hz de olsa 120 Hz de olsa
+// oyunun hızı değişmez. (Önceden 120 Hz telefonda oyun iki kat hızlı akıyordu.)
+var SIM_ADIM_MS = 1000 / 60;
+var sonZaman = 0, birikim = 0;
+
+function guncelle() {
   sayac++;
+  if (bitisKilit > 0) bitisKilit--;
   if (oyuncu) {
     oyuncu.ezilme *= 0.82;
     oyuncu.kirpSayaci--;
@@ -816,7 +1016,9 @@ function dongu() {
     }
     if (bolumYazi > 0) bolumYazi--;
   }
+}
 
+function ciz() {
   // ---- ÇİZ ----
   ctx.save();
   if (sarsinti > 0.4) { ctx.translate((Math.random() - 0.5) * sarsinti, (Math.random() - 0.5) * sarsinti); sarsinti *= 0.88; } else sarsinti = 0;
@@ -840,14 +1042,38 @@ function dongu() {
   }
 
   if (durum === "menu") menuyuCiz();
+  tamEkranDugmesiniCiz();
   if (durum === "duraklat") { ctx.fillStyle = "rgba(8,12,26,0.6)"; ctx.fillRect(0, 0, GENISLIK, YUKSEKLIK); ctx.textAlign = "center"; ctx.font = "700 40px " + BASLIK_FONT; ctx.fillStyle = "#fff"; ctx.fillText("DURAKLADI", GENISLIK / 2, 300); }
   if (durum === "bitti") bitisEkraniCiz(false);
   if (durum === "kazandi") bitisEkraniCiz(true);
 
+  // telefon dikey tutuluyorsa uyar (oyun yatay tasarlandı)
+  if (mobilCihaz && window.innerHeight > window.innerWidth) {
+    ctx.fillStyle = "rgba(8,12,26,0.85)"; ctx.fillRect(0, 0, GENISLIK, YUKSEKLIK);
+    ctx.textAlign = "center"; ctx.fillStyle = "#fff";
+    ctx.font = "700 44px " + BASLIK_FONT; ctx.fillText("📱 ↻", GENISLIK / 2, 270);
+    ctx.font = "600 26px " + BASLIK_FONT; ctx.fillText("Telefonu yan çevir", GENISLIK / 2, 330);
+  }
+
   ctx.restore();
+}
+
+function dongu(zaman) {
+  var simdi = zaman || (window.performance ? performance.now() : Date.now());
+  if (!sonZaman) sonZaman = simdi;
+  var fark = simdi - sonZaman;
+  sonZaman = simdi;
+  if (fark > 250) fark = 250;          // sekme arka plandayken biriken zamanı atla
+  birikim += fark;
+  var adet = 0;
+  while (birikim >= SIM_ADIM_MS && adet < 5) { birikim -= SIM_ADIM_MS; guncelle(); adet++; }
+  if (adet === 0 && sayac === 0) guncelle();   // ilk kare
+  ciz();
   requestAnimationFrame(dongu);
 }
 
+if (dokunmatikVar) document.getElementById("ipucu").textContent = "◀ ▶ yürü · ⤒ zıpla · telefonu yan tut";
+secilenBolum = Math.min(enIyiBolum, BOLUMLER.length);
 bolumuKur(0);
 durum = "menu";
 dongu();
