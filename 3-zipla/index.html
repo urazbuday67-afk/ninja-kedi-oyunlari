@@ -55,7 +55,7 @@ var KAMERA_KAYMA   = 0.35;   // Karakter ekranın ne kadar solunda dursun (0.5 =
 var OLUM_DERINLIGI = 260;    // Ekranın altından ne kadar sonra ölsün
 
 // SAHTE BLOK (Level Devil trollü!) — basınca titreyip kırılır, düşersin
-var SAHTE_KIRILMA  = 20;     // Sahte bloğa basınca kaç kare sonra kırılsın (0 = anında)
+var SAHTE_KIRILMA  = 48;     // Sahte bloğa basınca kaç kare sonra kırılsın (yaklaşık 0.8 sn, zıplamaya vakit var)
 
 // TUZAKLAR (korkunç şeyler!)
 var DIKEN_YUK       = 26;    // dikenlerin yüksekliği
@@ -91,39 +91,31 @@ function zipEgri(t) { var c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t 
 // ===========================================================
 var BOLUMLER = [
   {
-    baslangic: { x: 80, y: 420 },
-    bayrak: 1650,
+    // BÖLÜM 1 — KOLAY: sadece zıpla ve boşluklardan geç, tuzak yok
+    baslangic: { x: 80, y: 430 },
+    bayrak: 1500,
     platformlar: [
-      [0, 500, 360],
-      [440, 500, 300],
-      [820, 440, 180, "sahte"],
-      [1050, 380, 240],
-      [1330, 460, 380]
+      [0, 500, 420],
+      [520, 490, 300],
+      [900, 470, 240],
+      [1220, 500, 520]
     ],
-    tuzaklar: [
-      ["firlayan", 560, 500, 70],     // ilk platformda: sürpriz fırlayan diken
-      ["testere", 1170, 354, 26],     // 1080 platformu üstünde dönen testere
-      ["diken", 1480, 460, 80]        // son platformda: zıplayarak geç
-    ]
+    tuzaklar: []
   },
   {
-    baslangic: { x: 80, y: 380 },
-    bayrak: 2050,
+    // BÖLÜM 2 — ORTA: bir sahte blok + bir diken tanıtımı
+    baslangic: { x: 80, y: 420 },
+    bayrak: 1900,
     platformlar: [
-      [0, 500, 260],
-      [340, 460, 150],
-      [560, 400, 130],
-      [780, 350, 120],
-      [1000, 420, 140, "sahte"],
-      [1230, 480, 150],
-      [1450, 400, 120, "sahte"],
-      [1650, 340, 120],
-      [1850, 470, 360]
+      [0, 500, 340],
+      [440, 470, 220],
+      [760, 460, 200, "sahte"],
+      [1040, 440, 200],
+      [1330, 480, 220],
+      [1620, 470, 460]
     ],
     tuzaklar: [
-      ["tavan", 580, 120, 90],        // 560 platformu üstünde düşen tavan
-      ["diken", 1270, 480, 70],       // 1230 platformunda diken
-      ["firlayan", 1900, 470, 80]     // bayrak öncesi troll fırlayan
+      ["diken", 1400, 480, 70]        // zıplayarak geç
     ]
   },
   {
@@ -356,9 +348,9 @@ function fizik() {
   var yon = 0;
   if (tuslar["ArrowLeft"] || tuslar["a"] || tuslar["A"] || solBasili) yon -= 1;
   if (tuslar["ArrowRight"] || tuslar["d"] || tuslar["D"] || sagBasili) yon += 1;
-  var kontrol = oyuncu.yerde ? 1 : HAVADA_KONTROL;
-  oyuncu.vx = karistir(oyuncu.vx, yon * YATAY_HIZ, 0.34 * kontrol);   // çabuk dur (kayma az)
-  if (yon !== 0) oyuncu.bakis = yon;
+  // kendiliğinden kayma YOK: basınca o yöne git, bırakınca anında dur
+  if (yon !== 0) { oyuncu.vx = yon * YATAY_HIZ; oyuncu.bakis = yon; }
+  else { oyuncu.vx = 0; }
 
   // yerçekimi
   oyuncu.vy += YERCEKIMI;

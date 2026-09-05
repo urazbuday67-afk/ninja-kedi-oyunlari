@@ -16,20 +16,47 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@700;800&display=swap">
 <style>
+  html, body { height: 100%; }
   body {
-    margin: 0; height: 100vh;
+    margin: 0;
+    height: 100vh; height: 100dvh;   /* dvh: telefon tarayıcı çubuğunu da hesaba katar */
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     background: radial-gradient(circle at 50% 40%, #171235 0%, #05050f 70%);
     font-family: "Nunito", Arial, Helvetica, sans-serif;
     color: #fff; user-select: none;
+    overflow: hidden;                 /* oyun ekranı kaymasın */
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;               /* telefonda kaydırma/zoom oyunu bozmasın */
   }
   canvas {
     border-radius: 18px;
     box-shadow: 0 0 0 1px #6a5cff44, 0 24px 70px #0008, 0 0 90px #5566ff33;
     display: block;
+    touch-action: none;
   }
-  p { opacity: .45; font-size: 13px; margin-top: 14px; letter-spacing: .02em; }
+  #ipucu { opacity: .45; font-size: 13px; margin-top: 14px; letter-spacing: .02em; text-align: center; padding: 0 10px; }
+  /* Telefon / dar ekran: ipucu satırı gizlenir, tuval tüm ekranı kullanır */
+  @media (max-width: 820px), (pointer: coarse) {
+    #ipucu { display: none; }
+    canvas { border-radius: 0; }
+  }
+
+  /* "Telefonu yan çevir" uyarısı — sadece telefon DİKEY tutulunca çıkar,
+     dikeydeki boş üst banda oturur, oyunu kapatmaz (pointer-events yok). */
+  #cevir { display: none; }
+  @media (orientation: portrait) and (pointer: coarse) {
+    #cevir {
+      display: flex; flex-direction: column; gap: 8px;
+      position: fixed; left: 0; right: 0; top: 0; height: 20vh;
+      align-items: center; justify-content: center; text-align: center;
+      pointer-events: none; z-index: 50;
+    }
+  }
+  #cevir .tel { font-size: 46px; animation: cevirDon 2.4s ease-in-out infinite; }
+  #cevir p { margin: 0; font-weight: 800; font-size: 16px; color: #ffd84d; text-shadow: 0 2px 8px #000; }
+  #cevir small { display: block; margin-top: 3px; font-weight: 700; font-size: 12px; color: #fff; opacity: .82; }
+  @keyframes cevirDon { 0%,55% { transform: rotate(0deg);} 78%,100% { transform: rotate(90deg);} }
 
   /* TAM EKRAN: sahne bütün ekranı kaplar, oyun ortada durur */
   #sahne { display: flex; align-items: center; justify-content: center; }
@@ -50,7 +77,12 @@
 <div id="sahne">
   <canvas id="ekran" width="800" height="600"></canvas>
 </div>
-<p>&larr; &rarr; &uarr; &darr; her yöne &nbsp;·&nbsp; BOŞLUK başla / duraklat &nbsp;·&nbsp; F tam ekran &nbsp;·&nbsp; B arka plan &nbsp;·&nbsp; X &amp; C saldırı &nbsp;·&nbsp; G renk &nbsp;·&nbsp; M ses</p>
+<p id="ipucu">&larr; &rarr; &uarr; &darr; her yöne &nbsp;·&nbsp; BOŞLUK başla / duraklat &nbsp;·&nbsp; F tam ekran &nbsp;·&nbsp; B arka plan &nbsp;·&nbsp; X &amp; C saldırı &nbsp;·&nbsp; G renk &nbsp;·&nbsp; M ses</p>
+
+<div id="cevir" aria-hidden="true">
+  <div class="tel">📱</div>
+  <p>Telefonu yan çevir<small>böyle daha iyi oynanır</small></p>
+</div>
 
 <script>
 // ===========================================================
@@ -222,20 +254,37 @@ function tamEkranDegistir() {
   } catch (e) { /* bazı yerlerde (örneğin çerçeve içinde) izin verilmeyebilir */ }
 }
 
-// Tam ekranda oyunu en-boy oranını bozmadan büyüt
+// ---------- ORTAK EKRAN MOTORU ----------
+// Oyunun içi hep 800x600 kalır; burası sadece o dünyayı ekrana
+// en-boy oranını bozmadan sığdırır. Böylece telefonda da, tam ekranda da,
+// küçük pencerede de her şey (tuşlar dâhil) tam görünür.
+var dokunmatikCihaz = (("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0);
+
 function olcuAyarla() {
+  var alanG, alanY;
   if (tamEkranMi()) {
-    var olcek = Math.min(window.innerWidth / GENISLIK, window.innerHeight / YUKSEKLIK);
-    ekran.style.width  = Math.round(GENISLIK * olcek) + "px";
-    ekran.style.height = Math.round(YUKSEKLIK * olcek) + "px";
+    alanG = window.innerWidth;
+    alanY = window.innerHeight;
   } else {
-    ekran.style.width = "";
-    ekran.style.height = "";
+    // ipucu satırı görünüyorsa (masaüstü) ona yer bırak
+    var ipucu = document.getElementById("ipucu");
+    var altBosluk = (ipucu && ipucu.offsetParent !== null) ? (ipucu.offsetHeight + 22) : 0;
+    alanG = window.innerWidth;
+    alanY = window.innerHeight - altBosluk;
   }
+  var olcek = Math.min(alanG / GENISLIK, alanY / YUKSEKLIK);
+  // Tam ekran dışında oyunu gereğinden fazla büyütme (masaüstünde 800x600 kalsın),
+  // ama sığmıyorsa küçült (telefon burada devreye girer).
+  if (!tamEkranMi()) olcek = Math.min(olcek, 1);
+  ekran.style.width  = Math.round(GENISLIK * olcek) + "px";
+  ekran.style.height = Math.round(YUKSEKLIK * olcek) + "px";
 }
 document.addEventListener("fullscreenchange", olcuAyarla);
 document.addEventListener("webkitfullscreenchange", olcuAyarla);
 window.addEventListener("resize", olcuAyarla);
+window.addEventListener("orientationchange", function () { setTimeout(olcuAyarla, 120); });
+if (window.visualViewport) window.visualViewport.addEventListener("resize", olcuAyarla);
+olcuAyarla();   // sayfa açılır açılmaz bir kez sığdır
 
 // Farenin oyun içindeki gerçek yeri (ekran büyüyünce de doğru çalışsın)
 function fareKonumu(e) {
