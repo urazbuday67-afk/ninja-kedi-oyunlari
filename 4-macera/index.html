@@ -78,7 +78,7 @@
     </svg>
   </button>
 </div>
-<p id="ipucu">&larr; &rarr; y&uuml;r&uuml; &nbsp;·&nbsp; BOŞLUK / &uarr; z&#305;pla &nbsp;·&nbsp; X muz &nbsp;·&nbsp; C kol &nbsp;·&nbsp; W kalkan &nbsp;·&nbsp; S osuruk &nbsp;·&nbsp; G ge&#287;irme &nbsp;·&nbsp; F tam ekran</p>
+<p id="ipucu">&larr; &rarr; y&uuml;r&uuml; &nbsp;·&nbsp; BOŞLUK / &uarr; z&#305;pla &nbsp;·&nbsp; A kol &nbsp;·&nbsp; S muz &nbsp;·&nbsp; D osuruk &nbsp;·&nbsp; E ge&#287;irme &nbsp;·&nbsp; W kalkan &nbsp;·&nbsp; F tam ekran</p>
 
 <div id="cevir" aria-hidden="true">
   <div class="tel">📱</div>
@@ -547,11 +547,11 @@ document.addEventListener("keydown", function (e) {
     return;
   }
   if (!e.repeat && e.key === "ArrowUp") { e.preventDefault(); ziplaBasla(); }
-  if (!e.repeat && (e.key === "x" || e.key === "X")) muzFirlat();
-  if (!e.repeat && (e.key === "c" || e.key === "C")) kolSavur();
+  if (!e.repeat && (e.key === "s" || e.key === "S")) muzFirlat();
+  if (!e.repeat && (e.key === "a" || e.key === "A")) kolSavur();
   if (!e.repeat && (e.key === "w" || e.key === "W")) kalkanAc();
-  if (!e.repeat && (e.key === "s" || e.key === "S")) osur();
-  if (!e.repeat && (e.key === "g" || e.key === "G")) gegir();
+  if (!e.repeat && (e.key === "d" || e.key === "D")) osur();
+  if (!e.repeat && (e.key === "e" || e.key === "E")) gegir();
   if (e.key === "p" || e.key === "P") { if (durum === "oyun") { durum = "duraklat"; sesDurak(); } else if (durum === "duraklat") { durum = "oyun"; sesDevam(); } }
   if ((e.key === "r" || e.key === "R") && durum !== "menu") oyunuBaslat();
   if (e.key === "f" || e.key === "F") tamEkranDegistir();
@@ -883,8 +883,9 @@ function fizik() {
   var yariB = BOYUT / 2;
 
   var yon = 0;
-  if (tuslar["ArrowLeft"] || tuslar["a"] || tuslar["A"] || solBasili) yon -= 1;
-  if (tuslar["ArrowRight"] || tuslar["d"] || tuslar["D"] || sagBasili) yon += 1;
+  // A ve D saldırı tuşu oldu; yürüme ok tuşlarıyla (ve telefonda ◀ ▶ ile)
+  if (tuslar["ArrowLeft"] || solBasili) yon -= 1;
+  if (tuslar["ArrowRight"] || sagBasili) yon += 1;
   if (yon !== 0) { oyuncu.vx = yon * YATAY_HIZ; oyuncu.bakis = yon; oyuncu.yuruyor = true; }
   else { oyuncu.vx = 0; oyuncu.yuruyor = false; }
   if (oyuncu.yuruyor && oyuncu.yerde) oyuncu.adimFazi += 0.22;
@@ -922,7 +923,7 @@ function fizik() {
       if (yenenMuz >= MUZ_ESIGI) {
         yenenMuz = 0; osurukHak++;
         ton(320, 0.18, "sawtooth", 0.12, 140);
-        yazilarGoster("KARNIN GURULDUYOR — OSURUK HAZIR! (S)", "#9ad86a");
+        yazilarGoster("KARNIN GURULDUYOR — OSURUK HAZIR! (D)", "#9ad86a");
       }
     }
   }
@@ -937,7 +938,7 @@ function fizik() {
       if (icilenGazoz >= GAZOZ_ESIGI) {
         icilenGazoz = 0; gegirmeHak++;
         ton(200, 0.20, "square", 0.12, 300);
-        yazilarGoster("GAZ YAPTI — GEĞİRME HAZIR! (G)", "#ffb64d");
+        yazilarGoster("GAZ YAPTI — GEĞİRME HAZIR! (E)", "#ffb64d");
       }
     }
   }
@@ -1879,8 +1880,8 @@ function bilgileriCiz() {
 
   // OSURUK ve GEĞİRME hakları (sağ üst, panelin altında)
   var gucler = [
-    { ad: "OSURUK (S)",  hak: osurukHak,  ilerleme: yenenMuz / MUZ_ESIGI,     renk: "#9ad86a", simge: "💨" },
-    { ad: "GEĞİRME (G)", hak: gegirmeHak, ilerleme: icilenGazoz / GAZOZ_ESIGI, renk: "#ffb64d", simge: "🥤" }
+    { ad: "OSURUK (D)",  hak: osurukHak,  ilerleme: yenenMuz / MUZ_ESIGI,     renk: "#9ad86a", simge: "💨" },
+    { ad: "GEĞİRME (E)", hak: gegirmeHak, ilerleme: icilenGazoz / GAZOZ_ESIGI, renk: "#ffb64d", simge: "🥤" }
   ];
   for (var gi = 0; gi < gucler.length; gi++) {
     var gc = gucler[gi], gy = 66 + gi * 34;
@@ -1910,8 +1911,8 @@ function bilgileriCiz() {
 
   // saldırı bekleme çubukları (sol alt)
   var cubuklar = [
-    { ad: "X MUZ",    oran: 1 - oyuncu.muzBekle / MUZ_BEKLEME,   renk: "#ffd84d" },
-    { ad: "C KOL",    oran: 1 - oyuncu.kolBekle / KOL_BEKLEME,   renk: "#ff8a5a" },
+    { ad: "S MUZ",    oran: 1 - oyuncu.muzBekle / MUZ_BEKLEME,   renk: "#ffd84d" },
+    { ad: "A KOL",    oran: 1 - oyuncu.kolBekle / KOL_BEKLEME,   renk: "#ff8a5a" },
     { ad: "W KALKAN", oran: oyuncu.kalkan > 0 ? oyuncu.kalkan / KALKAN_SURE : (oyuncu.kalkanBekle > 0 ? 1 - oyuncu.kalkanBekle / KALKAN_BEKLEME : 1), renk: oyuncu.kalkan > 0 ? "#7fffc0" : "#6fe0a0" }
   ];
   if (!dokunmatikVar) {
@@ -2037,9 +2038,9 @@ function menuyuCiz() {
   ctx.font = "700 13px " + YAZI_FONT; ctx.fillStyle = "#ffffff55";
   ctx.fillText("En iyi bölüm: " + enIyiBolum + " / " + BOLUMLER.length + "   ·   En çok muz: " + enCokMuz, GENISLIK / 2, 512);
   ctx.fillText(dokunmatikVar ? "◀ ▶ yürü · ⤒ zıpla · 🍌 muz · ✊ kol · 🛡 kalkan"
-                             : "← → yürü · BOŞLUK/↑ zıpla · X muz · C kol · W kalkan", GENISLIK / 2, 538);
+                             : "← → yürü · BOŞLUK/↑ zıpla · A kol · S muz · D osuruk · E geğirme · W kalkan", GENISLIK / 2, 538);
   ctx.fillStyle = "#9ad86a";
-  ctx.fillText("2 muz = 💨 OSURUK (bayıltır)   ·   2 gazoz = 🥤 GEĞİRME (kaçırır)", GENISLIK / 2, 562);
+  ctx.fillText("2 muz = 💨 OSURUK (D)   ·   2 gazoz = 🥤 GEĞİRME (E)", GENISLIK / 2, 562);
 }
 
 function bitisEkraniCiz(kazandiMi) {
