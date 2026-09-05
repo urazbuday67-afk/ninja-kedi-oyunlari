@@ -6,7 +6,7 @@
 // İnternet yoksa son kaydedilen sürüm gösterilir.
 //
 // Oyunu her yayınladığında aşağıdaki SURUM numarasını bir artır.
-var SURUM = "v1";
+var SURUM = "v2";
 var ONBELLEK = "yildiz-kedi-" + SURUM;
 
 var TEMEL_DOSYALAR = [
