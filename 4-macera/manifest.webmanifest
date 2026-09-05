@@ -1,0 +1,20 @@
+{
+  "name": "Orangutan Macerası",
+  "short_name": "Orangutan",
+  "description": "Orman platform macerası! Yılanları, arıları ve maymunları muz fırlatarak, uzun kolunla savurarak ve kalkanla savuşturarak yen — sonunda Kral Goril seni bekliyor.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#08130c",
+  "theme_color": "#123a22",
+  "lang": "tr",
+  "dir": "ltr",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "simgeler/simge.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "simgeler/simge-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

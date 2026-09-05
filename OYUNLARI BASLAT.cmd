@@ -12,12 +12,15 @@ echo   BILGISAYARDA OYNA (tarayicida acilacak):
 echo    1. oyun: http://localhost:8123/1-yakala/
 echo    2. oyun: http://localhost:8123/2-kac/
 echo    3. oyun: http://localhost:8123/3-zipla/
+echo    4. oyun: http://localhost:8123/4-macera/
+echo.
+echo    HEPSI BIR ARADA (menu): http://localhost:8123/
 echo.
 echo   ==========================================
 echo    TELEFONDA OYNA (telefon ayni Wi-Fi'de olmali):
 echo    Telefonun tarayicisina sunu yaz:
 echo.
-echo        http://192.168.1.143:8123/3-zipla/
+echo        http://192.168.1.143:8123/
 echo.
 echo    (Ilk acilista Windows "izin ver" sorarsa IZIN VER.)
 echo    (Adres calismazsa: yeni pencerede ipconfig yazip
@@ -27,7 +30,7 @@ echo.
 echo    Bitince BU PENCEREYI KAPAT.
 echo.
 
-start "" "http://localhost:8123/3-zipla/"
+start "" "http://localhost:8123/"
 node ".claude\sunucu.js"
 
 echo.
