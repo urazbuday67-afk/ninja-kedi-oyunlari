@@ -125,11 +125,11 @@ var BOLUMLER = [
       [440, 470, 220],
       [760, 460, 200, "sahte"],
       [1040, 440, 200],
-      [1330, 480, 220],
+      [1300, 480, 270],
       [1620, 470, 460]
     ],
     tuzaklar: [
-      ["diken", 1400, 480, 70]        // zıplayarak geç
+      ["diken", 1410, 480, 50]        // zıplayarak geç (iki yanında 110 px iniş yeri var)
     ]
   },
   {
@@ -137,25 +137,25 @@ var BOLUMLER = [
     bayrak: 2700,
     platformlar: [
       [0, 480, 280],
-      [360, 470, 170],
-      [610, 430, 150],
+      [340, 470, 220],
+      [590, 430, 230],
       [860, 470, 170, "sahte"],
       [1110, 420, 150],
-      [1360, 470, 200],
+      [1340, 470, 260],
       [1660, 400, 150],
       [1900, 460, 160, "sahte"],
-      [2150, 430, 150],
+      [2130, 430, 200],
       [2380, 470, 760]
     ],
     kacan: true,
     tuzaklar: [
-      ["firlayan", 400, 470, 80],
-      ["diken", 660, 430, 70],
+      ["firlayan", 420, 470, 60],
+      ["diken", 680, 430, 50],
       ["tavan", 1180, 120, 100],
-      ["diken", 1420, 470, 90],
+      ["diken", 1440, 470, 60],
       ["tavan", 1720, 110, 90],
-      ["firlayan", 2200, 430, 80],
-      ["diken", 2440, 470, 80]
+      ["firlayan", 2200, 430, 60],
+      ["diken", 2460, 470, 60]
     ]
   }
 ];
@@ -559,12 +559,15 @@ function fizik() {
   }
 
   // ---- TUZAKLAR ----
-  var oyx = oyuncu.x - yariB, oyy = oyuncu.y - yariB, oyb = BOYUT;
-  function carpisti(bx, by, bg, bh) { return oyx < bx + bg && oyx + oyb > bx && oyy < by + bh && oyy + oyb > by; }
+  // Tuzak çarpışma kutusu karakterden biraz küçük (genişliğin %60'ı, alt-üstten 4 px içeride):
+  // kenarı sıyırınca ölmek "haksız" hissettirir, Level Devil da böyle yapar
+  var govde = yariB * 0.6;
+  var oyx = oyuncu.x - govde, oyy = oyuncu.y - yariB + 4, oyb = govde * 2, oyh = BOYUT - 8;
+  function carpisti(bx, by, bg, bh) { return oyx < bx + bg && oyx + oyb > bx && oyy < by + bh && oyy + oyh > by; }
   for (var ti = 0; ti < aktifTuzaklar.length; ti++) {
     var tz = aktifTuzaklar[ti];
     if (tz.tip === "diken") {
-      if (carpisti(tz.x, tz.y - DIKEN_YUK, tz.g, DIKEN_YUK)) { oldur(); return; }
+      if (carpisti(tz.x + 4, tz.y - DIKEN_YUK + 6, tz.g - 8, DIKEN_YUK - 6)) { oldur(); return; }   // dikenin ucu ve kenarları affedici
     }
     else if (tz.tip === "tavan") {
       if (!tz.dusuyor && oyuncu.x + yariB > tz.x - 20 && oyuncu.x - yariB < tz.x + tz.g + 20 && oyuncu.y > tz.dy + 40) {
