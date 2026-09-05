@@ -33,6 +33,15 @@
   #sahne { display: flex; align-items: center; justify-content: center; }
   #sahne:fullscreen, #sahne:-webkit-full-screen { width: 100vw; height: 100vh; background: #0a0512; }
   #sahne:fullscreen canvas, #sahne:-webkit-full-screen canvas { border-radius: 0; box-shadow: none; }
+  /* --- MOBİL: tuval tüm ekranı kaplar --- */
+  html, body { height: 100%; }
+  body { height: 100vh; height: 100dvh; touch-action: none; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+  canvas { touch-action: none; }
+  @media (max-width: 820px), (pointer: coarse) {
+    body { padding: 0; }
+    p, #ipucu { display: none; }
+    canvas { border-radius: 0; box-shadow: none; }
+  }
 </style>
 </head>
 <body>
@@ -40,7 +49,7 @@
 <div id="sahne">
   <canvas id="ekran" width="800" height="600"></canvas>
 </div>
-<p>&larr; &rarr; &uarr; &darr; her yöne kaç &nbsp;·&nbsp; <b>W</b> takla &nbsp;·&nbsp; <b>X</b> çakra topu &nbsp;·&nbsp; <b>C</b> kuyruk savur &nbsp;·&nbsp; BOŞLUK duraklat &nbsp;·&nbsp; F tam ekran &nbsp;·&nbsp; M ses</p>
+<p id="ipucu">&larr; &rarr; &uarr; &darr; her yöne kaç &nbsp;·&nbsp; <b>W</b> takla &nbsp;·&nbsp; <b>X</b> çakra topu &nbsp;·&nbsp; <b>C</b> kuyruk savur &nbsp;·&nbsp; BOŞLUK duraklat &nbsp;·&nbsp; F tam ekran &nbsp;·&nbsp; M ses</p>
 
 <script>
 // ===========================================================
@@ -84,8 +93,8 @@ var TOP_HASAR      = 1;     // Çakra topu kaç can götürsün
 var KUYRUK_MENZIL  = 120;   // C ile kuyruk savurma menzili (yakın dövüş)
 
 // DOKUNMATİK (telefon/tablet)
-var DOKUNMATIK_DUGME_BOY = 74;
-var DOKUNMATIK_KENAR     = 26;
+var DOKUNMATIK_DUGME_BOY = 92;
+var DOKUNMATIK_KENAR     = 32;
 var KUYRUK_BEKLE   = 48;    // Kuyruk savurma kaç karede bir
 
 // TAKLA (W) — kaçış: kedi döner ve o an dokunulmaz olur
@@ -127,23 +136,82 @@ function tamEkranDegistir() {
   try {
     if (!tamEkranMi()) {
       var ac = sahne.requestFullscreen || sahne.webkitRequestFullscreen;
-      if (ac) ac.call(sahne);
+      if (ac) { var s = ac.call(sahne); if (s && s.then) s.then(yatayKilitle, function () {}); else setTimeout(yatayKilitle, 300); }
     } else {
       var kapat = document.exitFullscreen || document.webkitExitFullscreen;
       if (kapat) kapat.call(document);
     }
   } catch (e) {}
 }
+function olcuDegisti() { tamEkranButonu.x = GENISLIK - 58; }
+
+// ===========================================================
+//   MOBİL MOTOR (üç oyunda ortak)
+//   - Telefonda tuval tüm ekranı kaplar; en-boy oranına göre oyun alanı genişler
+//     (800 px yerine 800–1300 px; yükseklik hep 600). Siyah bantlar yok.
+//   - Retina/yüksek DPI ekranda keskin çizim.
+//   - Tam ekrana geçince telefon yatay kilitlenir.
+//   - Eski tarayıcılarda roundRect yoksa ekler.
+// ===========================================================
+var mobilCihaz = (("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0);
+var EN_AZ_GENISLIK = 800, EN_COK_GENISLIK = 1300;
+if (!ctx.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function (x, y, g, yuk, r) {
+    if (typeof r !== "number") r = (r && r[0]) || 0;
+    r = Math.min(r, Math.abs(g) / 2, Math.abs(yuk) / 2);
+    this.moveTo(x + r, y);
+    this.arcTo(x + g, y, x + g, y + yuk, r);
+    this.arcTo(x + g, y + yuk, x, y + yuk, r);
+    this.arcTo(x, y + yuk, x, y, r);
+    this.arcTo(x, y, x + g, y, r);
+    this.closePath();
+    return this;
+  };
+}
+function yatayKilitle() {
+  try {
+    if (screen.orientation && screen.orientation.lock) {
+      var p = screen.orientation.lock("landscape");
+      if (p && p.catch) p.catch(function () {});
+    }
+  } catch (e) {}
+}
+function hedefGenislik() {
+  if (!mobilCihaz && !tamEkranMi()) return EN_AZ_GENISLIK;
+  var g = window.innerWidth, y = window.innerHeight;
+  if (!g || !y) return EN_AZ_GENISLIK;
+  var oran = g / y; if (oran < 1) oran = 1 / oran;   // dikey tutuluyorsa yatay gibi hesapla
+  return Math.max(EN_AZ_GENISLIK, Math.min(EN_COK_GENISLIK, Math.round(YUKSEKLIK * oran)));
+}
+var sonDpr = 0;
 function olcuAyarla() {
-  if (tamEkranMi()) {
-    var olcek = Math.min(window.innerWidth / GENISLIK, window.innerHeight / YUKSEKLIK);
-    ekran.style.width  = Math.round(GENISLIK * olcek) + "px";
-    ekran.style.height = Math.round(YUKSEKLIK * olcek) + "px";
-  } else { ekran.style.width = ""; ekran.style.height = ""; }
+  var yeniG = hedefGenislik();
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (yeniG !== GENISLIK || dpr !== sonDpr) {
+    GENISLIK = yeniG; sonDpr = dpr;
+    ekran.width = Math.round(GENISLIK * dpr); ekran.height = Math.round(YUKSEKLIK * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (typeof olcuDegisti === "function") olcuDegisti();
+  }
+  var tam = tamEkranMi(), alanG, alanY;
+  if (tam || mobilCihaz) { alanG = window.innerWidth; alanY = window.innerHeight; }
+  else {
+    var ip = document.getElementById("ipucu");
+    var altBosluk = (ip && ip.offsetParent !== null) ? (ip.offsetHeight + 22) : 0;
+    alanG = window.innerWidth - 24; alanY = window.innerHeight - altBosluk - 24;
+  }
+  var olcek = Math.min(alanG / GENISLIK, alanY / YUKSEKLIK);
+  if (!tam && !mobilCihaz) olcek = Math.min(olcek, 1);   // masaüstünde gereksiz büyütme
+  ekran.style.width  = Math.round(GENISLIK * olcek) + "px";
+  ekran.style.height = Math.round(YUKSEKLIK * olcek) + "px";
 }
 document.addEventListener("fullscreenchange", olcuAyarla);
 document.addEventListener("webkitfullscreenchange", olcuAyarla);
 window.addEventListener("resize", olcuAyarla);
+window.addEventListener("orientationchange", function () { setTimeout(olcuAyarla, 150); });
+if (window.visualViewport) window.visualViewport.addEventListener("resize", olcuAyarla);
+
+olcuAyarla();
 
 function fareKonumu(e) {
   var kutu = ekran.getBoundingClientRect();
@@ -873,7 +941,7 @@ function dugmeyeMiBasildi(nokta) {
   for (var i = 0; i < adlar.length; i++) {
     var g = dm[adlar[i]], mx = g.x + g.boy / 2, my = g.y + g.boy / 2;
     var dx = nokta.x - mx, dy = nokta.y - my;
-    if (Math.sqrt(dx * dx + dy * dy) < g.boy * 0.62) return adlar[i];
+    if (Math.sqrt(dx * dx + dy * dy) < g.boy * 0.75) return adlar[i];
   }
   return null;
 }
@@ -884,27 +952,49 @@ function dokunusKonumu(dokunus) {
     y: (dokunus.clientY - kutu.top) * (YUKSEKLIK / kutu.height)
   };
 }
+// İki parmak aynı anda: biri kediyi yönlendirir, öbürü düğmeye basar. Parmaklar kimliğiyle ayrılır.
+var surukleParmak = null, dugmeParmak = null;
+function tamEkranDugmesindeMi(n) {
+  var b = tamEkranButonu;
+  return n.x >= b.x - 10 && n.x <= b.x + b.boy + 10 && n.y >= b.y - 10 && n.y <= b.y + b.boy + 10;
+}
 ekran.addEventListener("touchstart", function (e) {
   dokunmatikVar = true; sesiUyandir(); e.preventDefault();
-  var nokta = dokunusKonumu(e.changedTouches[0]);
-  if (durum === "menu")     { oyunuBaslat(); sesBolum(); return; }
-  if (durum === "bitti")    { oyunuBaslat(); return; }
-  if (durum === "duraklat") { durum = "oyun"; sesDevam(); return; }
-  var dugme = dugmeyeMiBasildi(nokta);
-  if (dugme === "w") { basiliDugme = "w"; taklaAt(); return; }
-  if (dugme === "x") { basiliDugme = "x"; if (topBekleme <= 0) topAt(); return; }
-  if (dugme === "c") { basiliDugme = "c"; if (kuyrukBekleme <= 0 && kuyrukSaldiri <= 0) kuyrukSavurBasla(); return; }
-  dokunmatikHedef = nokta;
+  for (var i = 0; i < e.changedTouches.length; i++) {
+    var t = e.changedTouches[i], nokta = dokunusKonumu(t);
+    if ((durum === "menu" || durum === "duraklat") && tamEkranDugmesindeMi(nokta)) { tamEkranDegistir(); return; }
+    if (durum === "menu")     { oyunuBaslat(); sesBolum(); return; }
+    if (durum === "bitti")    { oyunuBaslat(); return; }
+    if (durum === "duraklat") { durum = "oyun"; sesDevam(); return; }
+    var dugme = dugmeyeMiBasildi(nokta);
+    if (dugme) {
+      basiliDugme = dugme; dugmeParmak = t.identifier;
+      if (dugme === "w") taklaAt();
+      else if (dugme === "x") { if (topBekleme <= 0) topAt(); }
+      else if (dugme === "c") { if (kuyrukBekleme <= 0 && kuyrukSaldiri <= 0) kuyrukSavurBasla(); }
+      continue;
+    }
+    surukleParmak = t.identifier; dokunmatikHedef = nokta;
+  }
 }, { passive: false });
 ekran.addEventListener("touchmove", function (e) {
   e.preventDefault();
-  if (basiliDugme) return;
-  dokunmatikHedef = dokunusKonumu(e.changedTouches[0]);
+  for (var i = 0; i < e.changedTouches.length; i++) {
+    var t = e.changedTouches[i];
+    if (t.identifier === surukleParmak) dokunmatikHedef = dokunusKonumu(t);
+  }
 }, { passive: false });
-ekran.addEventListener("touchend", function (e) {
-  e.preventDefault(); basiliDugme = null; dokunmatikHedef = null;
-}, { passive: false });
-ekran.addEventListener("touchcancel", function () { basiliDugme = null; dokunmatikHedef = null; });
+function parmakBirak(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  if (!e || !e.changedTouches) { basiliDugme = null; surukleParmak = null; dugmeParmak = null; dokunmatikHedef = null; return; }
+  for (var i = 0; i < e.changedTouches.length; i++) {
+    var id = e.changedTouches[i].identifier;
+    if (id === dugmeParmak) { basiliDugme = null; dugmeParmak = null; }
+    if (id === surukleParmak) { surukleParmak = null; dokunmatikHedef = null; }
+  }
+}
+ekran.addEventListener("touchend", parmakBirak, { passive: false });
+ekran.addEventListener("touchcancel", function () { parmakBirak(null); });
 
 function dokunmaDugmeleriniCiz() {
   if (!dokunmatikVar || durum !== "oyun") return;
@@ -1766,7 +1856,7 @@ function saldiriCubuklariniCiz() {
 // ===========================================================
 //   OYUN DÖNGÜSÜ
 // ===========================================================
-function oyunDongusu() {
+function oyunAdimi() {
   sayac++;
   var r = KEDI_BOYU / 2;
   var carpismaR = r * CARPISMA_ORANI;
@@ -2059,6 +2149,20 @@ function oyunDongusu() {
   if (durum === "bitti")    bittiEkraniniCiz();
 
   ctx.restore();
+}
+
+// Sabit zaman adımı: simülasyon her cihazda saniyede 60 adım. 120 Hz telefonda oyun
+// artık iki kat hızlı akmıyor; yavaş cihazda da yavaşlamıyor.
+var SIM_ADIM_MS = 1000 / 60, sonZaman = 0, birikim = 0;
+function oyunDongusu(zaman) {
+  var simdi = zaman || (window.performance ? performance.now() : Date.now());
+  if (!sonZaman) sonZaman = simdi;
+  var fark = simdi - sonZaman; sonZaman = simdi;
+  if (fark > 250) fark = 250;
+  birikim += fark;
+  var adet = 0;
+  while (birikim >= SIM_ADIM_MS && adet < 4) { birikim -= SIM_ADIM_MS; oyunAdimi(); adet++; }
+  if (adet === 0 && sayac === 0) oyunAdimi();
   requestAnimationFrame(oyunDongusu);
 }
 
