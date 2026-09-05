@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Ninja Kedi Oyunları</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#171235">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@700;800&display=swap">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: radial-gradient(circle at 50% 30%, #2a1a4f 0%, #0a0714 70%);
+    font-family: "Nunito", Arial, sans-serif; color: #fff;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 32px 16px 48px; -webkit-user-select: none; user-select: none;
+  }
+  h1 {
+    font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 40px;
+    margin: 10px 0 2px; text-align: center;
+    background: linear-gradient(180deg, #fff3b0, #ffd75e 50%, #ff9f43);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    text-shadow: 0 4px 30px rgba(255,183,0,.25);
+  }
+  .alt { opacity: .6; font-size: 14px; margin-bottom: 26px; text-align: center; }
+  .oyunlar { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 460px; }
+  a.kart {
+    display: flex; align-items: center; gap: 16px; text-decoration: none; color: #fff;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(160,180,255,.18);
+    border-radius: 20px; padding: 16px 18px; transition: transform .12s, background .12s;
+  }
+  a.kart:active { transform: scale(.97); background: rgba(255,255,255,.12); }
+  .ikon { width: 62px; height: 62px; border-radius: 16px; flex: 0 0 auto; box-shadow: 0 6px 20px #0006; }
+  .k1 { background: radial-gradient(circle at 40% 35%, #3a2a6b, #0a0720); }
+  .k2 { background: radial-gradient(circle at 40% 35%, #3a1638, #0a0512); }
+  .k3 { background: radial-gradient(circle at 40% 35%, #21365c, #0a0f1e); }
+  .yazi b { font-family: "Fredoka", sans-serif; font-size: 20px; font-weight: 600; display: block; }
+  .yazi span { font-size: 13px; opacity: .6; }
+  .no { margin-left: auto; font-size: 26px; opacity: .35; }
+  footer { margin-top: 30px; font-size: 12px; opacity: .4; text-align: center; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <h1>🐱 Ninja Kedi Oyunları</h1>
+  <div class="alt">Uraz Buday &amp; Çağlar Buday</div>
+
+  <div class="oyunlar">
+    <a class="kart" href="1-yakala/">
+      <img class="ikon" src="1-yakala/simgeler/simge-192.png" alt="">
+      <div class="yazi"><b>Yıldız Yakalayan Kedi</b><span>Yıldız topla, kuyruk kap, boss'ları yen</span></div>
+      <div class="no">1</div>
+    </a>
+    <a class="kart" href="2-kac/">
+      <img class="ikon" src="2-kac/simgeler/simge-192.png" alt="">
+      <div class="yazi"><b>Meteordan Kaçan Kedi</b><span>Her yönden gelen meteorlardan kaç</span></div>
+      <div class="no">2</div>
+    </a>
+    <a class="kart" href="3-zipla/">
+      <img class="ikon" src="3-zipla/simgeler/simge-192.png" alt="">
+      <div class="yazi"><b>Zıplayan Kedi</b><span>Zıpla, tuzaklardan kaç, bayrağa ulaş</span></div>
+      <div class="no">3</div>
+    </a>
+  </div>
+
+  <footer>
+    Bir oyuna dokun, aç, oyna! 🎮<br>
+    Telefonda: tarayıcı menüsünden "Ana ekrana ekle" ile uygulama gibi kur.
+  </footer>
+</body>
+</html>
