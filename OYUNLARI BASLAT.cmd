@@ -13,6 +13,7 @@ echo    1. oyun: http://localhost:8123/1-yakala/
 echo    2. oyun: http://localhost:8123/2-kac/
 echo    3. oyun: http://localhost:8123/3-zipla/
 echo    4. oyun: http://localhost:8123/4-macera/
+echo    5. oyun: http://localhost:8123/5-level-devil/
 echo.
 echo    HEPSI BIR ARADA (menu): http://localhost:8123/
 echo.

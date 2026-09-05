@@ -1,0 +1,20 @@
+{
+  "name": "Şeytani Bölüm",
+  "short_name": "Şeytani",
+  "description": "Troll platform oyunu: kaybolan zeminler, tavandan inen dikenler, suratına kapanan kapılar ve ters yerçekimi. Bölüm sana tuzak kuruyor!",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#0d0819",
+  "theme_color": "#1a1030",
+  "lang": "tr",
+  "dir": "ltr",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "simgeler/simge.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "simgeler/simge-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

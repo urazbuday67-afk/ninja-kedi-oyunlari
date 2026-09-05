@@ -1,0 +1,1512 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Şeytani Bölüm</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#1a1030">
+<meta name="description" content="Troll platform oyunu: bölüm sana tuzak kuruyor. Kaybolan zeminler, inen dikenler, kapanan kapılar ve ters yerçekimi!">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="simgeler/simge.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="simgeler/simge.svg">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@700;800&display=swap">
+<style>
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    height: 100vh; height: 100dvh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: radial-gradient(circle at 50% 35%, #2c1650 0%, #0d0819 72%);
+    font-family: "Nunito", Arial, Helvetica, sans-serif;
+    color: #fff; user-select: none; -webkit-user-select: none;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+  }
+  canvas { border-radius: 18px; box-shadow: 0 0 0 1px #ff4d6d33, 0 24px 70px #0009; display: block; touch-action: none; }
+  #ipucu { opacity: .45; font-size: 13px; margin-top: 14px; letter-spacing: .02em; text-align: center; padding: 0 10px; }
+  @media (max-width: 820px), (pointer: coarse) {
+    #ipucu { display: none; }
+    canvas { border-radius: 0; }
+  }
+  #cevir { display: none; }
+  @media (orientation: portrait) and (pointer: coarse) {
+    #cevir {
+      display: flex; flex-direction: column; gap: 8px;
+      position: fixed; left: 0; right: 0; top: 0; height: 20vh;
+      align-items: center; justify-content: center; text-align: center;
+      pointer-events: none; z-index: 50;
+    }
+  }
+  #cevir .tel { font-size: 46px; animation: cevirDon 2.4s ease-in-out infinite; }
+  #cevir p { margin: 0; font-weight: 800; font-size: 16px; color: #ffd84d; text-shadow: 0 2px 8px #000; }
+  #cevir small { display: block; margin-top: 3px; font-weight: 700; font-size: 12px; color: #fff; opacity: .82; }
+  @keyframes cevirDon { 0%,55% { transform: rotate(0deg);} 78%,100% { transform: rotate(90deg);} }
+
+  #tamekranDugme { display: none; }
+  @media (pointer: coarse) {
+    #tamekranDugme {
+      display: flex; align-items: center; justify-content: center;
+      position: fixed;
+      top: max(10px, env(safe-area-inset-top));
+      right: max(10px, env(safe-area-inset-right));
+      width: 46px; height: 46px; padding: 0; z-index: 60;
+      border: 0; border-radius: 12px; cursor: pointer;
+      background: rgba(20, 10, 40, 0.55); color: #ffd84d;
+      -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+      box-shadow: 0 2px 10px #0007, inset 0 0 0 1px #ffd84d55;
+    }
+    #tamekranDugme:active { transform: scale(0.92); }
+    #tamekranDugme svg { width: 24px; height: 24px; display: block; }
+  }
+  #sahne { display: flex; align-items: center; justify-content: center; }
+  #sahne:fullscreen, #sahne:-webkit-full-screen { width: 100vw; height: 100vh; background: #0d0819; }
+  #sahne:fullscreen canvas, #sahne:-webkit-full-screen canvas { border-radius: 0; box-shadow: none; }
+</style>
+</head>
+<body>
+
+<div id="sahne">
+  <canvas id="ekran" width="800" height="600"></canvas>
+  <button id="tamekranDugme" type="button" aria-label="Tam ekran aç / kapat" title="Tam ekran">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>
+    </svg>
+  </button>
+</div>
+<p id="ipucu">&larr; &rarr; y&uuml;r&uuml; &nbsp;·&nbsp; BOŞLUK / &uarr; z&#305;pla &nbsp;·&nbsp; R b&ouml;l&uuml;m&uuml; ba&#351;tan al &nbsp;·&nbsp; F tam ekran</p>
+
+<div id="cevir" aria-hidden="true">
+  <div class="tel">📱</div>
+  <p>Telefonu yan çevir<small>böyle daha iyi oynanır</small></p>
+</div>
+
+<script>
+// ===========================================================
+//   5. OYUN — ŞEYTANİ BÖLÜM  (Level Devil tarzı troll oyunu)
+//   Merdivenin son basamağı. Bölüm sana tuzak kuruyor!
+// ===========================================================
+
+// ------------------- AYARLAR (buraları değiştirip dene!) -------------------
+var YERCEKIMI      = 0.62;   // düşme hızlanması
+var ZIPLAMA_GUCU   = 13.2;   // zıplama ne kadar yükseğe
+var YURUME_HIZI    = 3.9;    // yürüme hızı
+var HAVA_KONTROL   = 0.72;   // havadayken yön değiştirme gücü (1 = tam serbest)
+var MAX_DUSME      = 17;     // en fazla düşme hızı
+var YAY_GUCU       = 20.5;   // yayın seni fırlatma gücü
+var KAYIP_ZEMIN_SURE = 36;   // kaybolan zemin kaç kare sonra yok olur (36 ≈ 0,6 saniye)
+var DIKEN_INME_HIZI  = 11;   // tavandan inen dikenin hızı
+var KAPI_KAPANMA_HIZI = 9;   // kapanan duvarın hızı
+var TUZAK_BEKLEME  = 55;     // tuzak indikten sonra kaç kare bekler (sonra geri çekilir)
+var TUZAK_GERI_HIZI = 5;     // tuzağın geri çekilme hızı (yavaş = daha korkutucu)
+var COKEN_TAVAN_HIZI = 0.55; // çöken tavanın inme hızı (yavaş = daha gergin)
+var TESTERE_R      = 24;     // testerenin yarıçapı
+var ROKET_HIZI     = 4.6;    // roketin uçuş hızı
+var ROKET_TAKIP    = 0.35;    // roket seni ne kadar sert takip eder (0 = hiç)
+var OLUM_SURESI    = 34;     // ölünce baştan almadan önceki kısa şov (kare)
+var KACAN_KAPI_MESAFE = 95;  // kaçan kapı sana bu kadar yaklaşınca kaçar
+var SONSUZ_CAN     = true;   // Level Devil ruhu: ölüm bedava, sadece sayılır
+
+var G = 800, Y = 600;        // dünya hep 800x600 (ekran motoru bunu ölçekler)
+var ZEMIN_KALIN = 22;        // platform kalınlığı
+
+// ------------------- BÖLÜMLER -------------------
+// platformlar: [x, y, genislik, "tip"]   tip: normal | kayip | sahte | yay
+// dikenler:    [x, y, genislik]          yerde duran sabit dikenler
+// tavanDiken:  [x, genislik, tetikX0, tetikX1]   sen o aralığa girince iner
+// kapananDuvar:[x, genislik, tetikX0, tetikX1, "yon"]  yon: asagi (tavandan iner) | yukari (yerden çıkar)
+// tersAlan:    [x, y, genislik, yukseklik]   içindeyken yerçekimi ters
+// kapi:        [x, y, kacarMi]
+var BOLUMLER = [
+  { // 1 — Isınma. Hiç troll yok... henüz.
+    ad: "Kolay başlangıç",
+    baslaX: 60, baslaY: 480,
+    platformlar: [[0, 540, 800, "normal"]],
+    dikenler: [],
+    tavanDiken: [],
+    kapananDuvar: [],
+    tersAlan: [],
+    kapi: [700, 458, false],
+    mesaj: "Ne kadar kolay, değil mi?"
+  },
+  { // 2 — İlk troll: kapı kaçar
+    ad: "Kapıyı yakala",
+    baslaX: 60, baslaY: 480,
+    platformlar: [[0, 540, 800, "normal"]],
+    dikenler: [],
+    tavanDiken: [],
+    kapananDuvar: [],
+    tersAlan: [],
+    kapi: [660, 458, true],
+    mesaj: "Kapı senden kaçıyor!"
+  },
+  { // 3 — Kaybolan zemin
+    ad: "Zemine güvenme",
+    baslaX: 50, baslaY: 470,
+    platformlar: [
+      [0, 540, 150, "normal"],
+      [180, 540, 110, "kayip"],
+      [330, 500, 110, "kayip"],
+      [480, 460, 110, "kayip"],
+      [630, 430, 170, "normal"]
+    ],
+    dikenler: [[150, 578, 480]],
+    tavanDiken: [],
+    kapananDuvar: [],
+    tersAlan: [],
+    kapi: [700, 348, false],
+    mesaj: "Basınca kayboluyorlar. Durma, koş!"
+  },
+  { // 4 — Tavandan inen dikenler
+    ad: "Yukarı bak",
+    baslaX: 45, baslaY: 480,
+    platformlar: [[0, 540, 800, "normal"]],
+    dikenler: [],
+    tavanDiken: [[250, 60, 170, 300], [430, 60, 350, 470], [610, 70, 520, 660]],
+    kapananDuvar: [],
+    tersAlan: [],
+    kapi: [730, 458, false],
+    mesaj: "Tepene dikkat et!"
+  },
+  { // 5 — Kapanan duvarlar
+    ad: "Kapı suratına kapanır",
+    baslaX: 45, baslaY: 480,
+    platformlar: [[0, 540, 800, "normal"], [300, 400, 130, "normal"]],
+    dikenler: [],
+    tavanDiken: [[560, 60, 470, 610]],
+    kapananDuvar: [[220, 34, 120, 200, "asagi"], [500, 34, 380, 470, "yukari"]],
+    tersAlan: [],
+    kapi: [735, 458, true],
+    mesaj: "Duvarlar seni bekliyor..."
+  },
+  { // 6 — Yaylar
+    ad: "Zıp zıp",
+    baslaX: 45, baslaY: 480,
+    platformlar: [
+      [0, 540, 200, "normal"],
+      [230, 545, 90, "yay"],
+      [350, 330, 160, "normal"],
+      [495, 545, 140, "yay"],
+      [690, 365, 110, "normal"]
+    ],
+    dikenler: [[320, 578, 60], [650, 578, 40]],
+    tavanDiken: [[430, 60, 440, 520]],
+    kapananDuvar: [],
+    tersAlan: [],
+    kapi: [730, 283, false],
+    mesaj: "Yaylar seni fırlatır. Tavandaki şeye dikkat!"
+  },
+  { // 7 — Ters yerçekimi
+    ad: "Dünya ters döndü",
+    baslaX: 45, baslaY: 480,
+    platformlar: [
+      [0, 540, 260, "normal"],
+      [0, 40, 800, "normal"],
+      [560, 540, 240, "normal"]
+    ],
+    dikenler: [[260, 578, 300]],
+    tavanDiken: [],
+    kapananDuvar: [],
+    tersAlan: [[270, 0, 280, 600]],
+    kapi: [700, 458, false],
+    mesaj: "Mor bölgede yerçekimi ters!"
+  },
+  { // 8 — Şeytanın odası: hepsi bir arada
+    ad: "ŞEYTANİ BÖLÜM",
+    baslaX: 40, baslaY: 480,
+    platformlar: [
+      [0, 540, 160, "normal"],
+      [175, 545, 120, "yay"],
+      [275, 330, 150, "kayip"],
+      [455, 265, 120, "normal"],
+      [0, 40, 800, "normal"],
+      [560, 540, 240, "normal"],
+      [590, 300, 120, "sahte"]
+    ],
+    dikenler: [[160, 578, 400]],
+    tavanDiken: [[640, 60, 560, 720]],
+    kapananDuvar: [[520, 34, 430, 520, "asagi"]],
+    tersAlan: [[520, 0, 200, 600]],
+    kapi: [730, 458, false],
+    mesaj: "İyi şanslar. Ona ihtiyacın olacak."
+  },
+
+  // ======= İKİNCİ YARI: YENİ TUZAKLAR =======
+  { // 9 — Çöken tavan
+    ad: "Tavan üstüne geliyor",
+    baslaX: 40, baslaY: 480,
+    platformlar: [[0, 540, 320, "normal"], [400, 540, 400, "normal"]],
+    dikenler: [[320, 578, 80]],
+    cokenTavan: [[90, 240, 400]],
+    kapi: [720, 458, false],
+    mesaj: "Tavan iniyor! Çabuk ol!"
+  },
+  { // 10 — Görünmez duvar + sahte kapı
+    ad: "Gözlerine inanma",
+    baslaX: 40, baslaY: 480,
+    platformlar: [[0, 540, 800, "normal"]],
+    gorunmezDuvar: [[280, 415, 26, 125], [560, 415, 26, 125]],
+    sahteKapi: [[400, 458]],
+    kapi: [720, 458, false],
+    mesaj: "Burada her şey yalan söylüyor."
+  },
+  { // 11 — Testereler
+    ad: "Testere dansı",
+    baslaX: 40, baslaY: 480,
+    platformlar: [
+      [0, 540, 220, "normal"],
+      [250, 470, 150, "normal"],
+      [430, 400, 150, "normal"],
+      [620, 470, 180, "normal"]
+    ],
+    dikenler: [[220, 578, 400]],
+    testereler: [[330, 395, 458, 458, 2.4], [505, 570, 388, 388, 3.1]],
+    kapi: [700, 388, false],
+    mesaj: "Testereler rayda gidip geliyor. Zamanla!"
+  },
+  { // 12 — Hareketli platformlar
+    ad: "Otobüse bin",
+    baslaX: 40, baslaY: 480,
+    // hareketli: [x, y, genislik, "hareketli", x0, x1, y0, y1, hiz]
+    platformlar: [
+      [0, 540, 180, "normal"],
+      [210, 470, 110, "hareketli", 210, 380, 470, 470, 1.5],
+      [520, 400, 110, "hareketli", 520, 520, 400, 250, 1.5],
+      [640, 275, 160, "normal"]
+    ],
+    dikenler: [[180, 578, 460]],
+    kapi: [710, 193, false],
+    mesaj: "Yeşil platformlar seni taşır. Üstünde kal!"
+  },
+  { // 13 — Roketler
+    ad: "Kaç! Roket geliyor!",
+    baslaX: 40, baslaY: 480,
+    platformlar: [[0, 540, 800, "normal"]],
+    roketler: [[820, 478, -1, 150, 330], [820, 478, -1, 430, 600]],
+    kapi: [730, 458, false],
+    mesaj: "Roketler peşinde! Tam zamanında ZIPLA!"
+  },
+  { // 14 — Testere + hareketli platform
+    ad: "Hareketli tehlike",
+    baslaX: 40, baslaY: 480,
+    platformlar: [
+      [0, 540, 200, "normal"],
+      [250, 500, 110, "hareketli", 250, 250, 500, 305, 1.4],
+      [430, 320, 120, "normal"],
+      [600, 430, 200, "normal"]
+    ],
+    dikenler: [[200, 578, 400]],
+    testereler: [[630, 770, 418, 418, 2.8]],
+    kapi: [720, 348, false],
+    mesaj: "Asansöre bin, testereye yakalanma!"
+  },
+  { // 15 — Çöken tavan + roket + görünmez duvar
+    ad: "Üç şeytan bir arada",
+    baslaX: 40, baslaY: 480,
+    platformlar: [[0, 540, 800, "normal"]],
+    gorunmezDuvar: [[360, 430, 26, 110]],
+    cokenTavan: [[80, 220, 380]],
+    roketler: [[820, 480, -1, 400, 600]],
+    kapi: [730, 458, false],
+    mesaj: "Tavan, roket ve görünmeyen bir şey..."
+  },
+  { // 16 — FİNAL: hepsi bir arada
+    ad: "SON ŞEYTAN",
+    baslaX: 35, baslaY: 480,
+    platformlar: [
+      [0, 540, 170, "normal"],
+      [175, 545, 110, "yay"],
+      [330, 340, 150, "normal"],
+      [530, 340, 110, "hareketli", 530, 530, 340, 200, 1.6],
+      [600, 200, 200, "normal"]
+    ],
+    dikenler: [[170, 578, 420]],
+    testereler: [[345, 415, 328, 328, 2.6]],
+    sahteKapi: [[610, 118]],
+    gorunmezDuvar: [[690, 100, 24, 100]],
+    roketler: [[820, 150, -1, 620, 780]],
+    kapi: [740, 118, false],
+    mesaj: "Son şeytan. Hiçbir şeye güvenme."
+  },
+
+  // ======= ÜÇÜNCÜ YARI: DÜNYA DEĞİŞİYOR =======
+  { // 17 — Karanlık
+    ad: "Işıklar söndü",
+    baslaX: 40, baslaY: 480,
+    karanlik: true,
+    platformlar: [[0, 540, 260, "normal"], [340, 540, 140, "normal"], [560, 540, 240, "normal"]],
+    dikenler: [[260, 578, 80], [480, 578, 80]],
+    kapi: [720, 458, false],
+    mesaj: "Sadece etrafını görebiliyorsun. Dikkatli yürü."
+  },
+  { // 18 — Ters kontroller
+    ad: "Sol sağ oldu",
+    baslaX: 40, baslaY: 480,
+    tersKontrol: true,
+    platformlar: [[0, 540, 300, "normal"], [380, 480, 130, "normal"], [590, 540, 210, "normal"]],
+    dikenler: [[300, 578, 80], [510, 578, 80]],
+    kapi: [720, 458, false],
+    mesaj: "Sağa basınca sola gidiyorsun. Kafan karıştı mı?"
+  },
+  { // 19 — Buz
+    ad: "Buz pateni",
+    baslaX: 40, baslaY: 480,
+    kaygan: true,
+    platformlar: [[0, 540, 320, "normal"], [400, 490, 150, "normal"], [620, 540, 180, "normal"]],
+    dikenler: [[320, 578, 80], [550, 578, 70]],
+    kapi: [700, 458, false],
+    mesaj: "Buz! Durmak istesen de kayarsın."
+  },
+  { // 20 — Ay yerçekimi
+    ad: "Ay'a hoş geldin",
+    baslaX: 40, baslaY: 480,
+    yercekimiCarpani: 0.42,
+    platformlar: [
+      [0, 540, 200, "normal"],
+      [330, 430, 220, "normal"],
+      [620, 320, 180, "normal"]
+    ],
+    dikenler: [[200, 578, 420]],
+    tavanDiken: [[250, 60, 150, 235]],
+    kapi: [700, 238, false],
+    mesaj: "Hafifsin! Çok yükseğe zıplıyorsun."
+  },
+  { // 21 — Karanlıkta testere
+    ad: "Karanlıkta bir ses",
+    baslaX: 40, baslaY: 480,
+    karanlik: true,
+    platformlar: [[0, 540, 300, "normal"], [380, 470, 160, "normal"], [610, 540, 190, "normal"]],
+    dikenler: [[300, 578, 80], [540, 578, 70]],
+    testereler: [[130, 215, 528, 528, 2.2], [715, 780, 528, 528, 2.9]],
+    kapi: [700, 458, false],
+    mesaj: "Bir şey duyuyor musun? O bir testere."
+  },
+  { // 22 — Buzda roket
+    ad: "Kaygan kaçış",
+    baslaX: 40, baslaY: 480,
+    kaygan: true,
+    platformlar: [[0, 540, 800, "normal"]],
+    roketler: [[820, 478, -1, 120, 300], [820, 478, -1, 430, 620]],
+    kapi: [730, 458, false],
+    mesaj: "Buzda roketten kaçmak kolay değil!"
+  },
+  { // 23 — Ters kontrol + ters yerçekimi
+    ad: "Her şey ters",
+    baslaX: 40, baslaY: 480,
+    tersKontrol: true,
+    platformlar: [[0, 540, 280, "normal"], [0, 40, 800, "normal"], [560, 540, 240, "normal"]],
+    dikenler: [[280, 578, 280]],
+    tersAlan: [[290, 0, 260, 600]],
+    testereler: [[330, 500, 84, 84, 2.5]],
+    kapi: [700, 458, false],
+    mesaj: "Kontroller ters, yerçekimi ters. Bol şans!"
+  },
+  { // 24 — GERÇEK SON
+    ad: "ŞEYTANIN KENDİSİ",
+    baslaX: 35, baslaY: 480,
+    karanlik: true,
+    yercekimiCarpani: 0.55,
+    platformlar: [
+      [0, 540, 180, "normal"],
+      [240, 450, 200, "normal"],
+      [470, 420, 120, "hareketli", 470, 470, 420, 300, 1.5],
+      [610, 255, 190, "normal"]
+    ],
+    dikenler: [[180, 578, 420]],
+    testereler: [[300, 375, 438, 438, 2.4]],
+    cokenTavan: [[600, 780, 120]],
+    sahteKapi: [[630, 173]],
+    gorunmezDuvar: [[700, 165, 24, 90]],
+    kapi: [750, 173, false],
+    mesaj: "Bu son. Gerçekten son. Herhâlde."
+  }
+];
+
+// ------------------- DEĞİŞKENLER -------------------
+var tuval = document.getElementById("ekran");
+var cx = tuval.getContext("2d");
+
+var durum = "menu";          // menu | oyun | olum | kazandi
+var bolumNo = 0;
+var sayac = 0;
+var kameraX = 0;             // (ekran motoru alışkanlığı: menü çizimi kullanabilir)
+var olumSayaci = 0;          // bu oynayışta kaç kere öldük
+var olumEfekti = 0;
+var mesajSure = 0;
+var bolum = null;            // bölümün ÇALIŞMA kopyası (tuzak durumları burada)
+var parcalar = [];           // ölüm efekti parçacıkları
+var titre = 0;               // ekran sarsıntısı
+
+var oyuncu = {
+  x: 60, y: 480, g: 22, h: 34,
+  vx: 0, vy: 0,
+  yerde: false, yon: 1, adim: 0,
+  yercekimiYon: 1,          // 1 = normal, -1 = ters
+  ziplayabilir: true
+};
+
+var basili = {};
+var kayit = kaydiOku();
+
+// ------------------- KAYIT -------------------
+function kaydiOku() {
+  try {
+    var ham = localStorage.getItem("seytaniBolumKaydi");
+    if (ham) return JSON.parse(ham);
+  } catch (e) {}
+  return { enIyiBolum: 0, toplamOlum: 0, bitirdi: false };
+}
+function kaydiYaz() {
+  try { localStorage.setItem("seytaniBolumKaydi", JSON.stringify(kayit)); } catch (e) {}
+}
+
+// ------------------- BÖLÜM KURULUMU -------------------
+function bolumuKur(no) {
+  var k = BOLUMLER[no];
+  bolum = {
+    ad: k.ad,
+    mesaj: k.mesaj,
+    platformlar: (k.platformlar || []).map(function (p) {
+      return { x: p[0], y: p[1], g: p[2], tip: p[3], sayac: 0, gitti: false, yaySikis: 0 };
+    }),
+    dikenler: (k.dikenler || []).map(function (d) { return { x: d[0], y: d[1], g: d[2] }; }),
+    tavanDiken: (k.tavanDiken || []).map(function (d) {
+      return { x: d[0], g: d[1], t0: d[2], t1: d[3], y: -70, hal: "hazir", bek: 0 };
+    }),
+    kapananDuvar: (k.kapananDuvar || []).map(function (d) {
+      return { x: d[0], g: d[1], t0: d[2], t1: d[3], yon: d[4], boy: 0, hal: "hazir", bek: 0 };
+    }),
+    tersAlan: (k.tersAlan || []).map(function (a) { return { x: a[0], y: a[1], g: a[2], h: a[3] }; }),
+
+    // --- YENİ TUZAKLAR (hepsi isteğe bağlı, olmayan bölümde boş kalır) ---
+    cokenTavan: (k.cokenTavan || []).map(function (t) {
+      return { t0: t[0], t1: t[1], durY: t[2], boy: 40, hal: "hazir" };
+    }),
+    gorunmezDuvar: (k.gorunmezDuvar || []).map(function (d) {
+      return { x: d[0], y: d[1], g: d[2], h: d[3], gorundu: false, parla: 0 };
+    }),
+    sahteKapi: (k.sahteKapi || []).map(function (d) {
+      return { x: d[0], y: d[1], g: 46, h: 82, gitti: false, gulme: 0 };
+    }),
+    testereler: (k.testereler || []).map(function (t) {
+      return { x0: t[0], x1: t[1], y0: t[2], y1: t[3], hiz: t[4], x: t[0], y: t[2], ilerle: 1, aci: 0 };
+    }),
+    roketler: (k.roketler || []).map(function (r) {
+      return { bx: r[0], by: r[1], yon: r[2], t0: r[3], t1: r[4], x: r[0], y: r[1], hal: "hazir", omur: 0 };
+    }),
+
+    // --- BÖLÜM ÖZELLİKLERİ ---
+    karanlik: !!k.karanlik,                    // sadece etrafını görürsün
+    tersKontrol: !!k.tersKontrol,              // sol = sağ
+    kaygan: !!k.kaygan,                        // buz gibi kayarsın
+    yercekimiCarpani: k.yercekimiCarpani || 1, // 1'den küçük = ay yerçekimi
+
+    kapi: { x: k.kapi[0], y: k.kapi[1], g: 46, h: 82, kacar: k.kapi[2], kactiMi: 0, sallan: 0 }
+  };
+  // hareketli platformlara kendi gidiş-geliş bilgisini ver
+  bolum.platformlar.forEach(function (p, i) {
+    var ham = k.platformlar[i];
+    if (p.tip === "hareketli") {
+      p.x0 = ham[4]; p.x1 = ham[5]; p.y0 = ham[6] !== undefined ? ham[6] : ham[1];
+      p.y1 = ham[7] !== undefined ? ham[7] : ham[1];
+      p.hiz = ham[8] || 1.6; p.ilerle = 1; p.dx = 0; p.dy = 0;
+    }
+  });
+  oyuncu.x = k.baslaX; oyuncu.y = k.baslaY;
+  oyuncu.vx = 0; oyuncu.vy = 0;
+  oyuncu.yerde = false; oyuncu.yercekimiYon = 1;
+  oyuncu.yon = 1; oyuncu.adim = 0;
+  parcalar = [];
+  mesajSure = 150;
+  olumEfekti = 0;
+}
+
+function oyunuBaslat() {
+  bolumNo = 0;
+  olumSayaci = 0;
+  sayac = 0; kameraX = 0;
+  bolumuKur(0);
+  durum = "oyun";
+}
+
+// ------------------- ÇARPIŞMA YARDIMCILARI -------------------
+function carpisti(ax, ay, ag, ah, bx, by, bg, bh) {
+  return ax < bx + bg && ax + ag > bx && ay < by + bh && ay + ah > by;
+}
+
+// ------------------- OYUNCU GÜNCELLE -------------------
+function oyuncuGuncelle() {
+  var sol = basili["ArrowLeft"] || basili["a"] || basili["A"] || dokunSol;
+  var sag = basili["ArrowRight"] || basili["d"] || basili["D"] || dokunSag;
+  var zipla = basili[" "] || basili["ArrowUp"] || basili["w"] || basili["W"] || dokunZipla;
+
+  // TERS KONTROL bölümünde sol sağ olur (klasik troll)
+  if (bolum.tersKontrol) { var gecici = sol; sol = sag; sag = gecici; }
+
+  oyuncu.tasiyan = null;
+
+  // --- yatay hareket ---
+  var hedef = 0;
+  if (sol) hedef -= YURUME_HIZI;
+  if (sag) hedef += YURUME_HIZI;
+  var guc = oyuncu.yerde ? 1 : HAVA_KONTROL;
+  // BUZDA yavaş hızlanır, yavaş durursun — kayarsın!
+  var tutus = bolum.kaygan ? 0.055 : 0.35;
+  oyuncu.vx += (hedef - oyuncu.vx) * (tutus * guc + (bolum.kaygan ? 0.012 : 0.1));
+  if (Math.abs(oyuncu.vx) < 0.05) oyuncu.vx = 0;
+  if (hedef !== 0) oyuncu.yon = hedef > 0 ? 1 : -1;
+  if (oyuncu.yerde && Math.abs(oyuncu.vx) > 0.5) oyuncu.adim += 0.28;
+  else oyuncu.adim *= 0.9;
+
+  // --- ters yerçekimi bölgesi ---
+  var ters = false;
+  for (var i = 0; i < bolum.tersAlan.length; i++) {
+    var a = bolum.tersAlan[i];
+    if (carpisti(oyuncu.x, oyuncu.y, oyuncu.g, oyuncu.h, a.x, a.y, a.g, a.h)) ters = true;
+  }
+  oyuncu.yercekimiYon = ters ? -1 : 1;
+
+  // --- zıplama ---
+  if (zipla && oyuncu.yerde && oyuncu.ziplayabilir) {
+    oyuncu.vy = -ZIPLAMA_GUCU * oyuncu.yercekimiYon;
+    oyuncu.yerde = false;
+    oyuncu.ziplayabilir = false;
+  }
+  if (!zipla) oyuncu.ziplayabilir = true;
+
+  // --- yerçekimi (AY bölümünde daha hafif: yükseğe zıplar, yavaş inersin) ---
+  oyuncu.vy += YERCEKIMI * (bolum.yercekimiCarpani || 1) * oyuncu.yercekimiYon;
+  if (oyuncu.vy > MAX_DUSME) oyuncu.vy = MAX_DUSME;
+  if (oyuncu.vy < -MAX_DUSME) oyuncu.vy = -MAX_DUSME;
+
+  // --- yatay taşı + duvar çarpışması ---
+  oyuncu.x += oyuncu.vx;
+  if (oyuncu.x < 0) { oyuncu.x = 0; oyuncu.vx = 0; }
+  if (oyuncu.x + oyuncu.g > G) { oyuncu.x = G - oyuncu.g; oyuncu.vx = 0; }
+  katiCisimler().forEach(function (p) {
+    if (p.sadeceDikey) return;
+    if (carpisti(oyuncu.x, oyuncu.y, oyuncu.g, oyuncu.h, p.x, p.y, p.g, p.h)) {
+      if (oyuncu.vx > 0) oyuncu.x = p.x - oyuncu.g;
+      else if (oyuncu.vx < 0) oyuncu.x = p.x + p.g;
+      oyuncu.vx = 0;
+      // görünmez duvara tosladın: artık görünüyor
+      if (p.kaynak && p.kaynak.gorundu === false) { p.kaynak.gorundu = true; p.kaynak.parla = 22; titre = 9; }
+    }
+  });
+
+  // --- dikey taşı ---
+  oyuncu.yerde = false;
+  oyuncu.y += oyuncu.vy;
+  katiCisimler().forEach(function (p) {
+    if (!carpisti(oyuncu.x, oyuncu.y, oyuncu.g, oyuncu.h, p.x, p.y, p.g, p.h)) return;
+    if (p.sadeceDikey) {          // çöken tavan: HER ZAMAN yukarıdan bastırır
+      oyuncu.y = p.y + p.h;
+      if (oyuncu.vy < 0) oyuncu.vy = 0;
+      return;
+    }
+    if (oyuncu.vy > 0) {          // aşağı iniyoruz
+      oyuncu.y = p.y - oyuncu.h;
+      oyuncu.vy = 0;
+      if (oyuncu.yercekimiYon === 1) { oyuncu.yerde = true; zemineBastik(p); }
+    } else if (oyuncu.vy < 0) {   // yukarı çıkıyoruz
+      oyuncu.y = p.y + p.h;
+      oyuncu.vy = 0;
+      if (oyuncu.yercekimiYon === -1) { oyuncu.yerde = true; zemineBastik(p); }
+    }
+  });
+
+  // hareketli platform üstündeysen seninle birlikte kayarsın
+  if (oyuncu.tasiyan) {
+    oyuncu.x += oyuncu.tasiyan.dx;
+    oyuncu.y += oyuncu.tasiyan.dy;
+    if (oyuncu.x < 0) oyuncu.x = 0;
+    if (oyuncu.x + oyuncu.g > G) oyuncu.x = G - oyuncu.g;
+  }
+
+  // ekrandan düşmek = ölüm. Yukarısı sadece TERS yerçekiminde ölüm sayılır —
+  // yoksa ay bölümünde yükseğe zıplayınca boşuna ölüyordun.
+  if (oyuncu.y > Y + 60) olduk();
+  else if (oyuncu.yercekimiYon === -1 && oyuncu.y < -80) olduk();
+}
+
+// oyuncunun çarpabileceği tüm katı dikdörtgenler
+function katiCisimler() {
+  var liste = [];
+  bolum.platformlar.forEach(function (p) {
+    if (p.gitti) return;
+    liste.push({ x: p.x, y: p.y, g: p.g, h: ZEMIN_KALIN, kaynak: p });
+  });
+  bolum.kapananDuvar.forEach(function (d) {
+    if (d.boy <= 0) return;
+    var yy = d.yon === "asagi" ? 0 : Y - d.boy;
+    liste.push({ x: d.x, y: yy, g: d.g, h: d.boy, kaynak: d });
+  });
+  bolum.cokenTavan.forEach(function (t) {
+    // sadeceDikey: tavanın "yanı" yok — yoksa zıplayınca seni ekranın kenarına fırlatıyordu
+    liste.push({ x: 0, y: 0, g: G, h: t.boy, kaynak: t, sadeceDikey: true });
+  });
+  bolum.gorunmezDuvar.forEach(function (d) {
+    liste.push({ x: d.x, y: d.y, g: d.g, h: d.h, kaynak: d });
+  });
+  return liste;
+}
+
+function zemineBastik(p) {
+  var kaynak = p.kaynak;
+  if (!kaynak || !kaynak.tip) return;
+  if (kaynak.tip === "kayip") kaynak.sayac = Math.max(kaynak.sayac, 1);
+  if (kaynak.tip === "sahte") { kaynak.gitti = true; titre = 8; }
+  if (kaynak.tip === "yay") {
+    oyuncu.vy = -YAY_GUCU * oyuncu.yercekimiYon;
+    oyuncu.yerde = false;
+    kaynak.yaySikis = 12;
+  }
+  if (kaynak.tip === "hareketli") oyuncu.tasiyan = kaynak;   // platform seni taşısın
+}
+
+// Ray üzerinde gidip gelen şeyler (testere, hareketli platform) için ortak hareket.
+// Ne kadar yol gidildiğini SAYIYLA tutar — yoksa hızlı giden bir şey dönüş
+// noktasını atlayıp sonsuza kadar kayıp gidiyordu.
+function raydaYuru(o) {
+  var hx = o.x1 - o.x0, hy = o.y1 - o.y0;
+  var uzunluk = Math.sqrt(hx * hx + hy * hy) || 1;
+  if (o.yol === undefined) o.yol = 0;
+  o.yol += o.hiz * o.ilerle;
+  if (o.yol >= uzunluk) { o.yol = uzunluk; o.ilerle = -1; }
+  if (o.yol <= 0) { o.yol = 0; o.ilerle = 1; }
+  o.x = o.x0 + (hx / uzunluk) * o.yol;
+  o.y = o.y0 + (hy / uzunluk) * o.yol;
+}
+
+// ------------------- TUZAKLARI GÜNCELLE -------------------
+function tuzaklariGuncelle() {
+  var om = oyuncu.x + oyuncu.g / 2;   // oyuncunun ortası
+
+  // kaybolan zeminler
+  bolum.platformlar.forEach(function (p) {
+    if (p.tip === "kayip" && p.sayac > 0 && !p.gitti) {
+      p.sayac++;
+      if (p.sayac > KAYIP_ZEMIN_SURE) { p.gitti = true; titre = 6; }
+    }
+    if (p.yaySikis > 0) p.yaySikis--;
+  });
+
+  // tavandan inen dikenler — iner, bekler, geri çekilir (yoksa bölüm kilitlenirdi)
+  bolum.tavanDiken.forEach(function (d) {
+    if (d.hal === "hazir" && om > d.t0 && om < d.t1) { d.hal = "iniyor"; titre = 10; }
+    else if (d.hal === "iniyor") {
+      d.y += DIKEN_INME_HIZI;
+      if (d.y >= Y - 60) { d.y = Y - 60; d.hal = "bekliyor"; d.bek = TUZAK_BEKLEME; titre = 6; }
+    } else if (d.hal === "bekliyor") {
+      d.bek--;
+      if (d.bek <= 0) d.hal = "cekiliyor";
+    } else if (d.hal === "cekiliyor") {
+      d.y -= TUZAK_GERI_HIZI;
+      if (d.y <= -70) { d.y = -70; d.hal = "bitti"; }   // tek atışlık: bir daha inmez
+    }
+  });
+
+  // kapanan duvarlar — kapanır, bekler, tekrar açılır
+  bolum.kapananDuvar.forEach(function (d) {
+    if (d.hal === "hazir" && om > d.t0 && om < d.t1) { d.hal = "kapaniyor"; titre = 12; }
+    else if (d.hal === "kapaniyor") {
+      d.boy += KAPI_KAPANMA_HIZI;
+      if (d.boy >= Y - 90) { d.boy = Y - 90; d.hal = "bekliyor"; d.bek = TUZAK_BEKLEME; }
+    } else if (d.hal === "bekliyor") {
+      d.bek--;
+      if (d.bek <= 0) d.hal = "aciliyor";
+    } else if (d.hal === "aciliyor") {
+      d.boy -= TUZAK_GERI_HIZI;
+      if (d.boy <= 0) { d.boy = 0; d.hal = "bitti"; }   // tek atışlık: bir daha kapanmaz
+    }
+  });
+
+  // --- ÇÖKEN TAVAN: tetiklenince yavaşça iner, durY'de durur (ezilirsen ölürsün) ---
+  bolum.cokenTavan.forEach(function (t) {
+    if (t.hal === "hazir" && om > t.t0 && om < t.t1) { t.hal = "cokuyor"; titre = 10; }
+    if (t.hal === "cokuyor") {
+      t.boy += COKEN_TAVAN_HIZI;
+      if (sayac % 8 === 0) titre = 4;
+      if (t.boy >= t.durY) { t.boy = t.durY; t.hal = "durdu"; }
+    }
+  });
+
+  // --- HAREKETLİ PLATFORMLAR: iki nokta arasında gidip gelirler ---
+  bolum.platformlar.forEach(function (p) {
+    if (p.tip !== "hareketli") return;
+    var eskiX = p.x, eskiY = p.y;
+    raydaYuru(p);
+    p.dx = p.x - eskiX; p.dy = p.y - eskiY;
+    // Yukarı çıkan platform oyuncuyu yakalarsa YANA itmesin, üstüne alsın
+    if (p.dy < 0 && carpisti(oyuncu.x, oyuncu.y, oyuncu.g, oyuncu.h, p.x, p.y, p.g, ZEMIN_KALIN)) {
+      if (oyuncu.y + oyuncu.h < p.y + ZEMIN_KALIN) {
+        oyuncu.y = p.y - oyuncu.h;
+        oyuncu.vy = 0;
+        oyuncu.yerde = true;
+        oyuncu.tasiyan = p;
+      }
+    }
+  });
+
+  // --- TESTERELER: rayda gidip gelen dönen testere ---
+  bolum.testereler.forEach(function (t) {
+    t.aci += 0.35;
+    raydaYuru(t);
+  });
+
+  // --- ROKETLER: tetiklenince duvardan fırlar, peşine düşer ---
+  bolum.roketler.forEach(function (r) {
+    if (r.hal === "hazir" && om > r.t0 && om < r.t1) {
+      r.hal = "ucuyor"; r.x = r.bx; r.y = r.by; r.omur = 260; titre = 8;
+    }
+    if (r.hal === "ucuyor") {
+      r.x += ROKET_HIZI * r.yon;
+      // hafifçe oyuncunun boyuna doğru döner (tam takip etmez, kaçabilirsin)
+      var fark = (oyuncu.y + oyuncu.h / 2) - (r.y + 8);
+      r.y += Math.max(-ROKET_TAKIP, Math.min(ROKET_TAKIP, fark * 0.05));
+      r.omur--;
+      if (r.omur <= 0 || r.x < -60 || r.x > G + 60) r.hal = "bitti";
+    }
+  });
+
+  // --- SAHTE KAPI: dokununca kaybolur ve seninle dalga geçer ---
+  bolum.sahteKapi.forEach(function (sk) {
+    if (sk.gulme > 0) sk.gulme--;
+    if (sk.gitti) return;
+    if (carpisti(oyuncu.x, oyuncu.y, oyuncu.g, oyuncu.h, sk.x + 8, sk.y, sk.g - 16, sk.h)) {
+      sk.gitti = true; sk.gulme = 90; titre = 12;
+      mesajSure = 100;
+      bolum.mesaj = "HAHA! Sahte kapıydı!";
+    }
+  });
+
+  // kaçan kapı
+  var k = bolum.kapi;
+  k.sallan += 0.08;
+  if (k.kacar && k.kactiMi < 2) {
+    var uzaklik = Math.abs((oyuncu.x + oyuncu.g / 2) - (k.x + k.g / 2));
+    if (uzaklik < KACAN_KAPI_MESAFE) {
+      k.kactiMi++;
+      titre = 9;
+      if (k.kactiMi === 1) k.x = Math.max(40, k.x - 330);   // birinci kaçış: geriye
+      else k.x = Math.min(G - k.g - 20, k.x + 300);          // ikinci: tekrar ileri
+      mesajSure = 90;
+      bolum.mesaj = k.kactiMi === 1 ? "Hah! Yakalayamadın!" : "Tamam tamam, son kez...";
+    }
+  }
+}
+
+// ------------------- ÖLÜM & BİTİŞ -------------------
+function olduk() {
+  if (durum !== "oyun") return;
+  durum = "olum";
+  olumEfekti = OLUM_SURESI;
+  olumSayaci++;
+  kayit.toplamOlum = (kayit.toplamOlum || 0) + 1;
+  kaydiYaz();
+  titre = 14;
+  parcalar = [];
+  for (var i = 0; i < 22; i++) {
+    parcalar.push({
+      x: oyuncu.x + oyuncu.g / 2, y: oyuncu.y + oyuncu.h / 2,
+      vx: (Math.random() - 0.5) * 11, vy: (Math.random() - 0.9) * 10,
+      b: 2 + Math.random() * 4, don: Math.random() * 6
+    });
+  }
+}
+
+function olumKontrolu() {
+  // yerdeki dikenler
+  for (var i = 0; i < bolum.dikenler.length; i++) {
+    var d = bolum.dikenler[i];
+    if (carpisti(oyuncu.x + 3, oyuncu.y + 4, oyuncu.g - 6, oyuncu.h - 4, d.x, d.y - 14, d.g, 22)) { olduk(); return; }
+  }
+  // tavandan inen dikenler (uç kısmı öldürür)
+  for (var j = 0; j < bolum.tavanDiken.length; j++) {
+    var t = bolum.tavanDiken[j];
+    if (t.y < -60) continue;
+    if (carpisti(oyuncu.x + 3, oyuncu.y + 3, oyuncu.g - 6, oyuncu.h - 6, t.x, t.y, t.g, 62)) { olduk(); return; }
+  }
+  // testereler
+  for (var s = 0; s < bolum.testereler.length; s++) {
+    var ts = bolum.testereler[s];
+    if (carpisti(oyuncu.x + 3, oyuncu.y + 3, oyuncu.g - 6, oyuncu.h - 6,
+                 ts.x - TESTERE_R + 5, ts.y - TESTERE_R + 5, TESTERE_R * 2 - 10, TESTERE_R * 2 - 10)) { olduk(); return; }
+  }
+  // roketler
+  for (var r = 0; r < bolum.roketler.length; r++) {
+    var rk = bolum.roketler[r];
+    if (rk.hal !== "ucuyor") continue;
+    if (carpisti(oyuncu.x + 3, oyuncu.y + 3, oyuncu.g - 6, oyuncu.h - 6, rk.x - 14, rk.y - 2, 28, 18)) { olduk(); return; }
+  }
+  // çöken tavanla ezilme
+  for (var c = 0; c < bolum.cokenTavan.length; c++) {
+    var ct = bolum.cokenTavan[c];
+    if (oyuncu.yerde && oyuncu.y < ct.boy) { olduk(); return; }
+  }
+}
+
+function kapiKontrolu() {
+  var k = bolum.kapi;
+  if (carpisti(oyuncu.x, oyuncu.y, oyuncu.g, oyuncu.h, k.x + 8, k.y, k.g - 16, k.h)) {
+    bolumNo++;
+    if (bolumNo > kayit.enIyiBolum) { kayit.enIyiBolum = bolumNo; kaydiYaz(); }
+    if (bolumNo >= BOLUMLER.length) {
+      durum = "kazandi";
+      kayit.bitirdi = true;
+      kaydiYaz();
+    } else {
+      bolumuKur(bolumNo);
+    }
+  }
+}
+
+// ------------------- ÇİZİM -------------------
+function arkaPlaniCiz() {
+  var gr = cx.createLinearGradient(0, 0, 0, Y);
+  gr.addColorStop(0, "#241041");
+  gr.addColorStop(1, "#0d0819");
+  cx.fillStyle = gr;
+  cx.fillRect(0, 0, G, Y);
+
+  // arka planda hafif kareler (ızgara)
+  cx.strokeStyle = "rgba(255,255,255,0.04)";
+  cx.lineWidth = 1;
+  for (var x = 0; x < G; x += 40) { cx.beginPath(); cx.moveTo(x, 0); cx.lineTo(x, Y); cx.stroke(); }
+  for (var y = 0; y < Y; y += 40) { cx.beginPath(); cx.moveTo(0, y); cx.lineTo(G, y); cx.stroke(); }
+
+  // arkada süzülen şeytani gözler
+  for (var i = 0; i < 3; i++) {
+    var gx = 130 + i * 260 + Math.sin(sayac * 0.012 + i) * 22;
+    var gy = 120 + Math.cos(sayac * 0.009 + i * 2) * 26;
+    cx.globalAlpha = 0.13 + Math.sin(sayac * 0.03 + i) * 0.05;
+    cx.fillStyle = "#ff4d6d";
+    cx.beginPath(); cx.ellipse(gx - 13, gy, 10, 6, 0, 0, 7); cx.fill();
+    cx.beginPath(); cx.ellipse(gx + 13, gy, 10, 6, 0, 0, 7); cx.fill();
+    cx.globalAlpha = 1;
+  }
+}
+
+function platformlariCiz() {
+  bolum.platformlar.forEach(function (p) {
+    if (p.gitti) return;
+    var yy = p.y + (p.yaySikis > 0 ? 5 : 0);
+    var kalin = ZEMIN_KALIN - (p.yaySikis > 0 ? 5 : 0);
+
+    if (p.tip === "yay") {
+      // yay: zikzak gövde + üstünde tabla
+      cx.strokeStyle = "#7fe0ff"; cx.lineWidth = 4;
+      cx.beginPath();
+      for (var i = 0; i <= 6; i++) {
+        var zx = p.x + 8 + (p.g - 16) * (i % 2);
+        var zy = yy + kalin - i * (kalin / 6);
+        if (i === 0) cx.moveTo(zx, zy); else cx.lineTo(zx, zy);
+      }
+      cx.stroke();
+      cx.fillStyle = "#7fe0ff";
+      cx.fillRect(p.x, yy, p.g, 8);
+      cx.fillStyle = "#0d0819";
+      cx.fillRect(p.x + 6, yy + 2, p.g - 12, 3);
+      return;
+    }
+
+    var ust = "#8f7ec9", govde = "#4a3a78";
+    if (p.tip === "kayip") {
+      var kalan = p.sayac > 0 ? 1 - p.sayac / KAYIP_ZEMIN_SURE : 1;
+      cx.globalAlpha = p.sayac > 0 ? 0.35 + kalan * 0.65 : 1;
+      ust = "#ffb35c"; govde = "#8a4a1c";
+      if (p.sayac > 0) {
+        // titreme
+        cx.save();
+        cx.translate(Math.sin(sayac * 0.9) * 2.5, 0);
+      }
+    }
+    if (p.tip === "sahte") { ust = "#8f7ec9"; govde = "#4a3a78"; }
+    if (p.tip === "hareketli") { ust = "#7fe0a0"; govde = "#2c6b48"; }
+    if (bolum.kaygan && p.tip === "normal") { ust = "#bfe9ff"; govde = "#3f7ea6"; }   // buz
+
+    cx.fillStyle = govde;
+    cx.fillRect(p.x, yy, p.g, kalin);
+    cx.fillStyle = ust;
+    cx.fillRect(p.x, yy, p.g, 6);
+    cx.strokeStyle = "rgba(0,0,0,0.45)"; cx.lineWidth = 2;
+    cx.strokeRect(p.x, yy, p.g, kalin);
+
+    if (p.tip === "kayip" && p.sayac > 0) cx.restore();
+    cx.globalAlpha = 1;
+  });
+}
+
+function dikenSirasiCiz(x, y, genislik, yukari) {
+  // yukari = true ise dikenler yukarı bakar (yerdeki dikenler)
+  var adet = Math.max(1, Math.floor(genislik / 18));
+  var w = genislik / adet;
+  cx.fillStyle = "#c9d4e0";
+  cx.strokeStyle = "#5a6472"; cx.lineWidth = 1.6;
+  for (var i = 0; i < adet; i++) {
+    var sx = x + i * w;
+    cx.beginPath();
+    if (yukari) { cx.moveTo(sx, y); cx.lineTo(sx + w / 2, y - 20); cx.lineTo(sx + w, y); }
+    else { cx.moveTo(sx, y); cx.lineTo(sx + w / 2, y + 20); cx.lineTo(sx + w, y); }
+    cx.closePath(); cx.fill(); cx.stroke();
+  }
+}
+
+function dikenleriCiz() {
+  bolum.dikenler.forEach(function (d) {
+    cx.fillStyle = "#2a1b3f";
+    cx.fillRect(d.x, d.y, d.g, Y - d.y);
+    dikenSirasiCiz(d.x, d.y, d.g, true);
+  });
+
+  bolum.tavanDiken.forEach(function (t) {
+    // tetik bölgesi belirsiz olsun diye çizilmez — sürpriz!
+    if (t.y < -60) return;
+    cx.fillStyle = "#3a2450";
+    cx.fillRect(t.x, t.y - 30, t.g, 32);
+    cx.strokeStyle = "#1c1030"; cx.lineWidth = 2;
+    cx.strokeRect(t.x, t.y - 30, t.g, 32);
+    dikenSirasiCiz(t.x, t.y + 2, t.g, false);
+    // zincir
+    cx.strokeStyle = "#6b5b8f"; cx.lineWidth = 3;
+    cx.beginPath(); cx.moveTo(t.x + t.g / 2, 0); cx.lineTo(t.x + t.g / 2, t.y - 28); cx.stroke();
+  });
+}
+
+function duvarlariCiz() {
+  bolum.kapananDuvar.forEach(function (d) {
+    if (d.boy <= 0) return;
+    var yy = d.yon === "asagi" ? 0 : Y - d.boy;
+    cx.fillStyle = "#5b3a7a";
+    cx.fillRect(d.x, yy, d.g, d.boy);
+    cx.fillStyle = "#7d54a3";
+    cx.fillRect(d.x, d.yon === "asagi" ? yy + d.boy - 8 : yy, d.g, 8);
+    cx.strokeStyle = "#1c1030"; cx.lineWidth = 2;
+    cx.strokeRect(d.x, yy, d.g, d.boy);
+  });
+}
+
+// --- YENİ TUZAKLARIN ÇİZİMİ ---
+function cokenTavaniCiz() {
+  bolum.cokenTavan.forEach(function (t) {
+    var sars = t.hal === "cokuyor" ? Math.sin(sayac * 0.8) * 1.6 : 0;
+    cx.fillStyle = "#3d2a5c";
+    cx.fillRect(0, 0, G, t.boy + sars);
+    cx.fillStyle = "#5b3a7a";
+    cx.fillRect(0, t.boy - 10 + sars, G, 10);
+    // alt kenardaki tehdit dişleri
+    dikenSirasiCiz(0, t.boy + sars, G, false);
+    if (t.hal === "cokuyor") {
+      cx.fillStyle = "#ff4d6d";
+      cx.font = "700 15px Nunito, Arial";
+      cx.textAlign = "center";
+      cx.fillText("TAVAN ÇÖKÜYOR!", G / 2, t.boy + 46 + sars);
+      cx.textAlign = "left";
+    }
+  });
+}
+
+function gorunmezDuvarlariCiz() {
+  bolum.gorunmezDuvar.forEach(function (d) {
+    if (!d.gorundu) return;                    // tosla ki görünsün!
+    if (d.parla > 0) d.parla--;
+    cx.globalAlpha = d.parla > 0 ? 0.55 + Math.sin(sayac) * 0.3 : 0.42;
+    cx.fillStyle = "#9ad8ff";
+    cx.fillRect(d.x, d.y, d.g, d.h);
+    cx.globalAlpha = 1;
+    cx.strokeStyle = "#9ad8ff"; cx.lineWidth = 2;
+    cx.setLineDash([8, 6]);
+    cx.strokeRect(d.x, d.y, d.g, d.h);
+    cx.setLineDash([]);
+  });
+}
+
+function sahteKapilariCiz() {
+  bolum.sahteKapi.forEach(function (sk) {
+    if (sk.gitti) {
+      if (sk.gulme > 0) {   // kaybolurken sırıtan ağız
+        cx.globalAlpha = sk.gulme / 90;
+        cx.fillStyle = "#ff4d6d";
+        cx.font = "700 34px Fredoka, Nunito, Arial";
+        cx.textAlign = "center";
+        cx.fillText("HA HA!", sk.x + sk.g / 2, sk.y + 40 - (90 - sk.gulme) * 0.4);
+        cx.textAlign = "left";
+        cx.globalAlpha = 1;
+      }
+      return;
+    }
+    // gerçek kapıdan ayırt edilemez çizilir (troll!)
+    var sal = Math.sin(sayac * 0.05) * 2;
+    cx.fillStyle = "#3a2a12";
+    cx.fillRect(sk.x - 4, sk.y - 4 + sal, sk.g + 8, sk.h + 4);
+    var gr = cx.createLinearGradient(sk.x, sk.y, sk.x + sk.g, sk.y);
+    gr.addColorStop(0, "#ffd84d"); gr.addColorStop(1, "#f0a92a");
+    cx.fillStyle = gr;
+    cx.fillRect(sk.x, sk.y + sal, sk.g, sk.h);
+    cx.strokeStyle = "#7a4d0a"; cx.lineWidth = 2.5;
+    cx.strokeRect(sk.x, sk.y + sal, sk.g, sk.h);
+    cx.fillStyle = "#7a4d0a";
+    cx.beginPath(); cx.arc(sk.x + sk.g - 11, sk.y + sk.h / 2 + sal, 4, 0, 7); cx.fill();
+  });
+}
+
+function testereleriCiz() {
+  bolum.testereler.forEach(function (t) {
+    // ray
+    cx.strokeStyle = "rgba(255,255,255,0.14)"; cx.lineWidth = 3;
+    cx.beginPath(); cx.moveTo(t.x0, t.y0); cx.lineTo(t.x1, t.y1); cx.stroke();
+
+    cx.save();
+    cx.translate(t.x, t.y);
+    cx.rotate(t.aci);
+    cx.fillStyle = "#c9d4e0";
+    cx.strokeStyle = "#5a6472"; cx.lineWidth = 2;
+    cx.beginPath();
+    for (var i = 0; i < 12; i++) {
+      var a1 = (i / 12) * Math.PI * 2, a2 = ((i + 0.5) / 12) * Math.PI * 2;
+      cx.lineTo(Math.cos(a1) * TESTERE_R, Math.sin(a1) * TESTERE_R);
+      cx.lineTo(Math.cos(a2) * (TESTERE_R - 8), Math.sin(a2) * (TESTERE_R - 8));
+    }
+    cx.closePath(); cx.fill(); cx.stroke();
+    cx.fillStyle = "#5a6472";
+    cx.beginPath(); cx.arc(0, 0, 5, 0, 7); cx.fill();
+    cx.restore();
+  });
+}
+
+function roketleriCiz() {
+  bolum.roketler.forEach(function (r) {
+    if (r.hal !== "ucuyor") return;
+    cx.save();
+    cx.translate(r.x, r.y + 8);
+    cx.scale(r.yon, 1);
+    // alev
+    var alev = 10 + Math.random() * 10;
+    cx.fillStyle = "#ffb35c";
+    cx.beginPath(); cx.moveTo(-13, -5); cx.lineTo(-13 - alev, 0); cx.lineTo(-13, 5); cx.closePath(); cx.fill();
+    cx.fillStyle = "#ff4d6d";
+    cx.beginPath(); cx.moveTo(-13, -3); cx.lineTo(-13 - alev * 0.6, 0); cx.lineTo(-13, 3); cx.closePath(); cx.fill();
+    // gövde
+    cx.fillStyle = "#e6ebf2";
+    cx.beginPath();
+    cx.moveTo(14, 0); cx.lineTo(2, -7); cx.lineTo(-13, -7); cx.lineTo(-13, 7); cx.lineTo(2, 7);
+    cx.closePath(); cx.fill();
+    cx.strokeStyle = "#5a6472"; cx.lineWidth = 2; cx.stroke();
+    cx.fillStyle = "#ff4d6d";
+    cx.beginPath(); cx.moveTo(14, 0); cx.lineTo(4, -6); cx.lineTo(4, 6); cx.closePath(); cx.fill();
+    cx.restore();
+  });
+}
+
+// KARANLIK bölüm: oyuncunun etrafı hariç her şey karanlık
+function karanligiCiz() {
+  if (!bolum.karanlik) return;
+  var mx = oyuncu.x + oyuncu.g / 2, my = oyuncu.y + oyuncu.h / 2;
+  var r = 118 + Math.sin(sayac * 0.08) * 6;      // fener hafifçe titrer
+  var gr = cx.createRadialGradient(mx, my, r * 0.35, mx, my, r);
+  gr.addColorStop(0, "rgba(8,4,18,0)");
+  gr.addColorStop(0.75, "rgba(8,4,18,0.72)");
+  gr.addColorStop(1, "rgba(8,4,18,0.97)");
+  cx.fillStyle = gr;
+  cx.fillRect(0, 0, G, Y);
+  // köşeler tamamen karanlık kalsın
+  cx.fillStyle = "rgba(8,4,18,0.97)";
+  cx.fillRect(0, 0, G, Math.max(0, my - r));
+  cx.fillRect(0, Math.min(Y, my + r), G, Y);
+  cx.fillRect(0, 0, Math.max(0, mx - r), Y);
+  cx.fillRect(Math.min(G, mx + r), 0, G, Y);
+}
+
+function tersAlanlariCiz() {
+  bolum.tersAlan.forEach(function (a) {
+    cx.fillStyle = "rgba(150, 90, 255, 0.13)";
+    cx.fillRect(a.x, a.y, a.g, a.h);
+    cx.strokeStyle = "rgba(190, 140, 255, 0.5)";
+    cx.setLineDash([10, 8]); cx.lineWidth = 2;
+    cx.strokeRect(a.x, a.y, a.g, a.h);
+    cx.setLineDash([]);
+    // yukarı akan oklar
+    cx.strokeStyle = "rgba(200, 160, 255, 0.55)"; cx.lineWidth = 3;
+    for (var i = 0; i < 4; i++) {
+      var ox = a.x + a.g * (0.2 + i * 0.2);
+      var oy = a.y + a.h - ((sayac * 2.2 + i * 90) % a.h);
+      cx.beginPath();
+      cx.moveTo(ox, oy + 12); cx.lineTo(ox, oy - 12);
+      cx.moveTo(ox - 7, oy - 4); cx.lineTo(ox, oy - 13); cx.lineTo(ox + 7, oy - 4);
+      cx.stroke();
+    }
+  });
+}
+
+function kapiyiCiz() {
+  var k = bolum.kapi;
+  var sal = Math.sin(k.sallan) * 2;
+  cx.fillStyle = "#3a2a12";
+  cx.fillRect(k.x - 4, k.y - 4 + sal, k.g + 8, k.h + 4);
+  var gr = cx.createLinearGradient(k.x, k.y, k.x + k.g, k.y);
+  gr.addColorStop(0, "#ffd84d"); gr.addColorStop(1, "#f0a92a");
+  cx.fillStyle = gr;
+  cx.fillRect(k.x, k.y + sal, k.g, k.h);
+  cx.strokeStyle = "#7a4d0a"; cx.lineWidth = 2.5;
+  cx.strokeRect(k.x, k.y + sal, k.g, k.h);
+  cx.fillStyle = "#7a4d0a";
+  cx.beginPath(); cx.arc(k.x + k.g - 11, k.y + k.h / 2 + sal, 4, 0, 7); cx.fill();
+  // parlama
+  cx.globalAlpha = 0.25 + Math.sin(sayac * 0.06) * 0.15;
+  cx.fillStyle = "#fff8c0";
+  cx.fillRect(k.x - 10, k.y - 10 + sal, k.g + 20, k.h + 20);
+  cx.globalAlpha = 1;
+}
+
+// --- ÇÖP ADAM ---
+function copAdamCiz(x, y, g, h, yon, adim, havada, ters) {
+  cx.save();
+  cx.translate(x + g / 2, y + h / 2);
+  if (ters) cx.scale(1, -1);
+  cx.translate(0, -h / 2);
+
+  cx.strokeStyle = "#fff";
+  cx.lineWidth = 3.4;
+  cx.lineCap = "round";
+  cx.fillStyle = "#fff";
+
+  var kafaR = 7.5;
+  var boyunY = kafaR * 2 + 1;
+  var kalcaY = h - 13;
+
+  // kafa
+  cx.beginPath(); cx.arc(0, kafaR + 1, kafaR, 0, 7); cx.fill();
+  // gözler (koyu)
+  cx.fillStyle = "#170d2b";
+  cx.beginPath(); cx.arc(yon * 2.4 - 2.2, kafaR, 1.5, 0, 7); cx.fill();
+  cx.beginPath(); cx.arc(yon * 2.4 + 2.2, kafaR, 1.5, 0, 7); cx.fill();
+  cx.fillStyle = "#fff";
+
+  // gövde
+  cx.beginPath(); cx.moveTo(0, boyunY); cx.lineTo(0, kalcaY); cx.stroke();
+
+  var s = Math.sin(adim), c = Math.cos(adim);
+  // kollar
+  cx.beginPath();
+  if (havada) {
+    cx.moveTo(0, boyunY + 4); cx.lineTo(-9, boyunY - 6);
+    cx.moveTo(0, boyunY + 4); cx.lineTo(9, boyunY - 6);
+  } else {
+    cx.moveTo(0, boyunY + 3); cx.lineTo(-8, boyunY + 12 + s * 5);
+    cx.moveTo(0, boyunY + 3); cx.lineTo(8, boyunY + 12 - s * 5);
+  }
+  cx.stroke();
+
+  // bacaklar
+  cx.beginPath();
+  if (havada) {
+    cx.moveTo(0, kalcaY); cx.lineTo(-7, h - 2);
+    cx.moveTo(0, kalcaY); cx.lineTo(8, h - 5);
+  } else {
+    cx.moveTo(0, kalcaY); cx.lineTo(-6 + c * 6, h);
+    cx.moveTo(0, kalcaY); cx.lineTo(6 - c * 6, h);
+  }
+  cx.stroke();
+
+  cx.restore();
+}
+
+function oyuncuyuCiz() {
+  copAdamCiz(oyuncu.x, oyuncu.y, oyuncu.g, oyuncu.h, oyuncu.yon,
+             oyuncu.adim, !oyuncu.yerde, oyuncu.yercekimiYon === -1);
+}
+
+function parcalariCiz() {
+  cx.fillStyle = "#fff";
+  parcalar.forEach(function (p) {
+    cx.save();
+    cx.translate(p.x, p.y);
+    cx.rotate(p.don);
+    cx.fillRect(-p.b / 2, -p.b / 2, p.b, p.b * 2.2);
+    cx.restore();
+  });
+}
+
+function arayuzuCiz() {
+  cx.font = "700 17px Nunito, Arial";
+  cx.textAlign = "left";
+  cx.fillStyle = "rgba(255,255,255,0.85)";
+  cx.fillText("BÖLÜM " + (bolumNo + 1) + " / " + BOLUMLER.length + " — " + bolum.ad, 16, 30);
+  cx.textAlign = "right";
+  cx.fillStyle = "#ff8fa3";
+  cx.fillText("ÖLÜM: " + olumSayaci, G - 16, 30);
+  cx.textAlign = "left";
+
+  if (mesajSure > 0) {
+    mesajSure--;
+    cx.globalAlpha = Math.min(1, mesajSure / 40);
+    cx.textAlign = "center";
+    cx.font = "700 20px Fredoka, Nunito, Arial";
+    cx.fillStyle = "#ffd84d";
+    cx.fillText(bolum.mesaj, G / 2, 68);
+    cx.textAlign = "left";
+    cx.globalAlpha = 1;
+  }
+}
+
+function menuyuCiz() {
+  arkaPlaniCiz();
+  cx.textAlign = "center";
+
+  cx.fillStyle = "#ff4d6d";
+  cx.font = "700 58px Fredoka, Nunito, Arial";
+  cx.fillText("ŞEYTANİ BÖLÜM", G / 2, 170 + Math.sin(sayac * 0.04) * 5);
+  cx.fillStyle = "rgba(255,255,255,0.75)";
+  cx.font = "700 19px Nunito, Arial";
+  cx.fillText("Bölüm sana tuzak kuruyor. Ona güvenme.", G / 2, 208);
+
+  // maskot çöp adam
+  var zip = Math.abs(Math.sin(sayac * 0.05)) * 26;
+  copAdamCiz(G / 2 - 11, 300 - zip, 22, 34, 1, sayac * 0.15, zip > 12, false);
+  cx.fillStyle = "#4a3a78";
+  cx.fillRect(G / 2 - 60, 334, 120, 14);
+
+  cx.fillStyle = "rgba(255,255,255,0.6)";
+  cx.font = "700 16px Nunito, Arial";
+  cx.fillText("En iyi bölüm: " + kayit.enIyiBolum + " / " + BOLUMLER.length +
+              "   ·   Toplam ölüm: " + (kayit.toplamOlum || 0), G / 2, 392);
+  if (kayit.bitirdi) {
+    cx.fillStyle = "#ffd84d";
+    cx.fillText("★ Oyunu bitirdin! ★", G / 2, 416);
+  }
+
+  // BAŞLA düğmesi
+  var by = 450 + Math.sin(sayac * 0.06) * 3;
+  cx.fillStyle = "#ff4d6d";
+  cx.fillRect(G / 2 - 110, by, 220, 56);
+  cx.fillStyle = "#fff";
+  cx.font = "700 26px Fredoka, Nunito, Arial";
+  cx.fillText("BAŞLA", G / 2, by + 37);
+
+  cx.fillStyle = "rgba(255,255,255,0.45)";
+  cx.font = "700 14px Nunito, Arial";
+  cx.fillText("← → yürü   ·   BOŞLUK / ↑ zıpla   ·   R baştan al", G / 2, 552);
+  cx.textAlign = "left";
+}
+
+function kazandiEkraniCiz() {
+  arkaPlaniCiz();
+  cx.textAlign = "center";
+  cx.fillStyle = "#ffd84d";
+  cx.font = "700 54px Fredoka, Nunito, Arial";
+  cx.fillText("ŞEYTANI YENDİN!", G / 2, 190);
+  cx.fillStyle = "#fff";
+  cx.font = "700 22px Nunito, Arial";
+  cx.fillText(BOLUMLER.length + " bölümün hepsini bitirdin.", G / 2, 240);
+  cx.fillStyle = "#ff8fa3";
+  cx.font = "700 28px Nunito, Arial";
+  cx.fillText("Bu oynayışta " + olumSayaci + " kere öldün.", G / 2, 300);
+
+  copAdamCiz(G / 2 - 11, 340, 22, 34, 1, sayac * 0.2, false, false);
+  cx.fillStyle = "#4a3a78";
+  cx.fillRect(G / 2 - 60, 374, 120, 14);
+
+  var by = 440;
+  cx.fillStyle = "#ff4d6d";
+  cx.fillRect(G / 2 - 110, by, 220, 56);
+  cx.fillStyle = "#fff";
+  cx.font = "700 24px Fredoka, Nunito, Arial";
+  cx.fillText("TEKRAR OYNA", G / 2, by + 37);
+  cx.textAlign = "left";
+}
+
+// ------------------- DOKUNMATİK DÜĞMELER -------------------
+var dokunSol = false, dokunSag = false, dokunZipla = false;
+var dokunmatik = false;
+
+function dugmeler() {
+  return {
+    sol:   { x: 24,  y: Y - 96, g: 76, h: 72, yazi: "◀" },
+    sag:   { x: 116, y: Y - 96, g: 76, h: 72, yazi: "▶" },
+    zipla: { x: G - 116, y: Y - 104, g: 92, h: 84, yazi: "⤒" }
+  };
+}
+
+function dugmeleriCiz() {
+  if (!dokunmatik) return;
+  var d = dugmeler();
+  [["sol", dokunSol], ["sag", dokunSag], ["zipla", dokunZipla]].forEach(function (par) {
+    var b = d[par[0]], basik = par[1];
+    cx.globalAlpha = basik ? 0.55 : 0.28;
+    cx.fillStyle = "#fff";
+    cx.beginPath();
+    cx.roundRect ? cx.roundRect(b.x, b.y, b.g, b.h, 16) : cx.rect(b.x, b.y, b.g, b.h);
+    cx.fill();
+    cx.globalAlpha = basik ? 1 : 0.8;
+    cx.fillStyle = "#1a1030";
+    cx.font = "700 30px Nunito, Arial";
+    cx.textAlign = "center";
+    cx.fillText(b.yazi, b.x + b.g / 2, b.y + b.h / 2 + 11);
+    cx.textAlign = "left";
+    cx.globalAlpha = 1;
+  });
+}
+
+// ------------------- ANA DÖNGÜ -------------------
+function dongu() {
+  sayac++;
+  if (titre > 0) titre--;
+
+  cx.save();
+  if (titre > 0) cx.translate((Math.random() - 0.5) * titre, (Math.random() - 0.5) * titre);
+
+  if (durum === "menu") {
+    menuyuCiz();
+  } else if (durum === "kazandi") {
+    kazandiEkraniCiz();
+  } else {
+    if (durum === "oyun") {
+      oyuncuGuncelle();
+      tuzaklariGuncelle();
+      olumKontrolu();
+      if (durum === "oyun") kapiKontrolu();
+    }
+
+    arkaPlaniCiz();
+    tersAlanlariCiz();
+    platformlariCiz();
+    duvarlariCiz();
+    gorunmezDuvarlariCiz();
+    dikenleriCiz();
+    testereleriCiz();
+    roketleriCiz();
+    cokenTavaniCiz();
+    sahteKapilariCiz();
+    kapiyiCiz();
+
+    if (durum === "olum") {
+      parcalar.forEach(function (p) {
+        p.x += p.vx; p.y += p.vy; p.vy += 0.55; p.don += 0.2;
+      });
+      parcalariCiz();
+      olumEfekti--;
+      cx.textAlign = "center";
+      cx.fillStyle = "#ff4d6d";
+      cx.font = "700 44px Fredoka, Nunito, Arial";
+      cx.fillText("ÖLDÜN!", G / 2, 230);
+      cx.textAlign = "left";
+      if (olumEfekti <= 0) { bolumuKur(bolumNo); durum = "oyun"; }
+    } else {
+      oyuncuyuCiz();
+    }
+
+    karanligiCiz();
+    arayuzuCiz();
+    dugmeleriCiz();
+  }
+
+  cx.restore();
+  requestAnimationFrame(dongu);
+}
+
+// ------------------- KONTROLLER -------------------
+document.addEventListener("keydown", function (e) {
+  basili[e.key] = true;
+  if ([" ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].indexOf(e.key) >= 0) e.preventDefault();
+  if (e.key === "r" || e.key === "R") { if (durum === "oyun" || durum === "olum") { bolumuKur(bolumNo); durum = "oyun"; } }
+  if (e.key === "f" || e.key === "F") tamEkranDegistir();
+  if (e.key === "Enter" || e.key === " ") {
+    if (durum === "menu") oyunuBaslat();
+    else if (durum === "kazandi") oyunuBaslat();
+  }
+});
+document.addEventListener("keyup", function (e) { basili[e.key] = false; });
+
+// fare / dokunma
+function tuvalKoordinati(olay) {
+  var kutu = tuval.getBoundingClientRect();
+  return {
+    x: (olay.clientX - kutu.left) * (G / kutu.width),
+    y: (olay.clientY - kutu.top) * (Y / kutu.height)
+  };
+}
+
+tuval.addEventListener("click", function (olay) {
+  var p = tuvalKoordinati(olay);
+  if (durum === "menu" || durum === "kazandi") {
+    var by = durum === "menu" ? 450 : 440;
+    if (p.x > G / 2 - 110 && p.x < G / 2 + 110 && p.y > by - 12 && p.y < by + 68) oyunuBaslat();
+  }
+});
+
+function dokunmalariIsle(olay) {
+  dokunmatik = true;
+  dokunSol = dokunSag = dokunZipla = false;
+  var d = dugmeler();
+  for (var i = 0; i < olay.touches.length; i++) {
+    var p = tuvalKoordinati(olay.touches[i]);
+    if (p.x > d.sol.x - 12 && p.x < d.sol.x + d.sol.g + 12 && p.y > d.sol.y - 12) dokunSol = true;
+    else if (p.x > d.sag.x - 12 && p.x < d.sag.x + d.sag.g + 12 && p.y > d.sag.y - 12) dokunSag = true;
+    else if (p.x > d.zipla.x - 14 && p.x < d.zipla.x + d.zipla.g + 14 && p.y > d.zipla.y - 14) dokunZipla = true;
+    else if (durum === "menu" || durum === "kazandi") {
+      var by = durum === "menu" ? 450 : 440;
+      if (p.x > G / 2 - 110 && p.x < G / 2 + 110 && p.y > by - 12 && p.y < by + 68) oyunuBaslat();
+    }
+  }
+}
+tuval.addEventListener("touchstart", function (e) { e.preventDefault(); dokunmalariIsle(e); }, { passive: false });
+tuval.addEventListener("touchmove", function (e) { e.preventDefault(); dokunmalariIsle(e); }, { passive: false });
+tuval.addEventListener("touchend", function (e) { e.preventDefault(); dokunmalariIsle(e); }, { passive: false });
+tuval.addEventListener("touchcancel", function (e) { dokunSol = dokunSag = dokunZipla = false; }, { passive: true });
+if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) dokunmatik = true;
+
+// ------------------- EKRAN MOTORU (tüm oyunlarda ortak) -------------------
+var sahne = document.getElementById("sahne");
+
+function olcuAyarla() {
+  var tamEkranda = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  var gEn = window.innerWidth, gBoy = window.innerHeight;
+  if (window.visualViewport) { gEn = window.visualViewport.width; gBoy = window.visualViewport.height; }
+  // ipucu satırı telefonda gizli — sadece görünüyorsa ona yer ayır
+  var ipucu = document.getElementById("ipucu");
+  if (!tamEkranda && ipucu && ipucu.offsetParent !== null) gBoy -= 40;
+  var olcek = Math.min(gEn / G, gBoy / Y);
+  if (!tamEkranda) olcek = Math.min(olcek, 1);       // masaüstünde 800x600'ü aşma
+  tuval.style.width = Math.round(G * olcek) + "px";
+  tuval.style.height = Math.round(Y * olcek) + "px";
+}
+window.addEventListener("resize", olcuAyarla);
+window.addEventListener("orientationchange", olcuAyarla);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", olcuAyarla);
+  window.visualViewport.addEventListener("scroll", olcuAyarla);
+}
+document.addEventListener("fullscreenchange", olcuAyarla);
+document.addEventListener("webkitfullscreenchange", olcuAyarla);
+
+function tamEkranDegistir() {
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  } else {
+    if (sahne.requestFullscreen) sahne.requestFullscreen();
+    else if (sahne.webkitRequestFullscreen) sahne.webkitRequestFullscreen();
+    if (screen.orientation && screen.orientation.lock) {
+      try { screen.orientation.lock("landscape").catch(function () {}); } catch (e) {}
+    }
+  }
+  setTimeout(olcuAyarla, 120);
+}
+document.getElementById("tamekranDugme").addEventListener("click", tamEkranDegistir);
+
+// ------------------- BAŞLAT -------------------
+sayac = 0; kameraX = 0;      // menü çizimi bunları kullanır — tanımsız kalmasın!
+bolumuKur(0);
+olcuAyarla();
+dongu();
+
+if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
+  navigator.serviceWorker.register("sw.js").catch(function () {});
+}
+</script>
+</body>
+</html>

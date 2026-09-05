@@ -1,6 +1,6 @@
 # 🐱 Oyun Projesi — Ninja Kedi Oyunları
 
-Bu, oyun yapmayı öğrenmek için hazırlanan bir proje. **Uraz Buday** ve **Çağlar Buday** tarafından yapılıyor.
+Bu, oyun yapmayı öğrenmek için hazırlanan bir proje. **Uraz** ve **Çağlar** tarafından yapılıyor.
 Her oyun saf **HTML + Canvas + JavaScript** ile yazıldı — hiçbir kurulum, hiçbir kütüphane gerekmez.
 Uzak hedef: Play Store'daki **Level Devil** tarzı bir oyun. Oraya küçük oyunlarla adım adım gidiyoruz.
 
