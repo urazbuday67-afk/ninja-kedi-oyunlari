@@ -43,24 +43,26 @@
     <!-- yanak pedleri -->
     <ellipse cx="256" cy="238" rx="158" ry="112" fill="#b8501e" stroke="#54200a" stroke-width="11"/>
     <!-- yüz diski -->
-    <ellipse cx="256" cy="240" rx="84" ry="92" fill="#e8b483"/>
+    <ellipse cx="256" cy="240" rx="84" ry="92" fill="#4e2f1e"/>
+    <ellipse cx="256" cy="206" rx="72" ry="30" fill="#6d452c"/>
     <!-- kaşlar -->
-    <g stroke="#5c2b10" stroke-width="15" stroke-linecap="round">
+    <g stroke="#2e1408" stroke-width="15" stroke-linecap="round">
       <line x1="200" y1="204" x2="238" y2="214"/>
       <line x1="312" y1="204" x2="274" y2="214"/>
     </g>
     <!-- gözler -->
-    <ellipse cx="220" cy="243" rx="21" ry="23" fill="#fff8ee"/>
-    <ellipse cx="292" cy="243" rx="21" ry="23" fill="#fff8ee"/>
-    <circle cx="225" cy="243" r="12" fill="#2a1a10"/>
-    <circle cx="297" cy="243" r="12" fill="#2a1a10"/>
-    <circle cx="221" cy="237" r="4.5" fill="#fff"/>
-    <circle cx="293" cy="237" r="4.5" fill="#fff"/>
+    <ellipse cx="228" cy="243" rx="17" ry="18" fill="#efe0cf"/>
+    <ellipse cx="284" cy="243" rx="17" ry="18" fill="#efe0cf"/>
+    <circle cx="231" cy="243" r="10" fill="#1d1008"/>
+    <circle cx="287" cy="243" r="10" fill="#1d1008"/>
+    <circle cx="227" cy="237" r="4" fill="#fff"/>
+    <circle cx="283" cy="237" r="4" fill="#fff"/>
     <!-- burun -->
-    <circle cx="246" cy="278" r="6.5" fill="#a8663a"/>
-    <circle cx="266" cy="278" r="6.5" fill="#a8663a"/>
+    <ellipse cx="244" cy="280" rx="9" ry="7" fill="#2e1408"/>
+    <ellipse cx="268" cy="280" rx="9" ry="7" fill="#2e1408"/>
     <!-- ağız -->
-    <path d="M226 300 Q256 322 286 300" stroke="#7a3a18" stroke-width="13" fill="none" stroke-linecap="round"/>
+    <ellipse cx="256" cy="308" rx="42" ry="22" fill="#3d2013"/>
+    <path d="M232 306 Q256 324 280 306" stroke="#2e1408" stroke-width="9" fill="none" stroke-linecap="round"/>
   </g>
 
   <!-- MUZ (elinde) -->
