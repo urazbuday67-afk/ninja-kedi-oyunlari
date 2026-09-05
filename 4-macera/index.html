@@ -108,6 +108,8 @@ var MUZ_HIZ        = 12;     // X: fırlattığın muz ne hızlı gitsin
 var MUZ_HASAR      = 1;      // Muz kaç hasar versin
 var MUZ_BEKLEME    = 24;     // İki muz arası bekleme (kare)
 var MUZ_OMUR       = 95;     // Muz kaç kare uçsun
+var ATIS_HAZIRLIK  = 6;      // Atmadan önce kolu geriye çekme süresi (kare)
+var YEME_SURESI    = 58;     // Muzu ağzına atıp çiğneme animasyonu (kare)
 
 var KOL_MENZIL     = 100;    // C: uzun kolun ne kadar uzağa yetişsin
 var KOL_HASAR      = 2;      // Kol savurma kaç hasar versin
@@ -328,6 +330,7 @@ function sesYansit()   { ton(900, 0.12, "square", 0.14, 1500); }
 function sesDusmanOl() { ton(300, 0.16, "square", 0.14, 120); ton(160, 0.22, "sawtooth", 0.12, 60, 0.07); }
 function sesHasar()    { ton(200, 0.22, "sawtooth", 0.18, 70); }
 function sesToplama()  { ton(880, 0.09, "sine", 0.13, 1320); }
+function sesIsirik()   { ton(240, 0.06, "square", 0.10, 120); ton(180, 0.05, "square", 0.08, 90, 0.07); }
 function sesGazoz()    { ton(1100, 0.07, "square", 0.10, 1600); ton(1500, 0.09, "sine", 0.08, 900, 0.05); }
 // PFFFRT — inip çıkan boğuk vızıltı
 function sesOsuruk()   {
@@ -411,6 +414,7 @@ function bolumuKur(no) {
     muzBekle: 0, kolSure: 0, kolBekle: 0,
     kalkan: 0, kalkanBekle: 0, muzAtis: 0,
     osurukSure: 0, gegirmeSure: 0,
+    atisHazirlik: 0, yemeSure: 0, nefes: 0,
     dokunulmaz: 0
   };
   kameraX = 0;
@@ -440,12 +444,17 @@ function ziplaBasla() {
   }
 }
 function muzFirlat() {
-  if (durum !== "oyun" || oyuncu.muzBekle > 0) return;
+  if (durum !== "oyun" || oyuncu.muzBekle > 0 || oyuncu.atisHazirlik > 0) return;
   oyuncu.muzBekle = MUZ_BEKLEME;
-  oyuncu.muzAtis = 12;
+  oyuncu.atisHazirlik = ATIS_HAZIRLIK;   // kolu geriye çekip nişan alır
+  ton(520, 0.05, "sine", 0.06, 700);     // hazırlık "hıh" sesi
+}
+// hazırlık bitince muz gerçekten fırlar (kol öne savrulur)
+function muzuBirak() {
+  oyuncu.muzAtis = 14;
   atilanMuzlar.push({
-    x: oyuncu.x + oyuncu.bakis * BOYUT * 0.45,
-    y: oyuncu.y - BOYUT * 0.1,
+    x: oyuncu.x + oyuncu.bakis * BOYUT * 0.5,
+    y: oyuncu.y - BOYUT * 0.22,
     vx: oyuncu.bakis * MUZ_HIZ, vy: -1.6,
     omur: MUZ_OMUR, aci: 0
   });
@@ -919,6 +928,7 @@ function fizik() {
     if (mz.alindi) continue;
     if (Math.abs(mz.x - oyuncu.x) < 38 && Math.abs(mz.y - oyuncu.y) < 48) {
       mz.alindi = true; muzPuan += 1; yenenMuz++; sesToplama();
+      oyuncu.yemeSure = YEME_SURESI;        // eline alıp ağzına atar
       patlama(mz.x, mz.y, "#ffd84d", 8);
       if (yenenMuz >= MUZ_ESIGI) {
         yenenMuz = 0; osurukHak++;
@@ -958,6 +968,12 @@ function fizik() {
   if (oyuncu.gegirmeSure > 0) oyuncu.gegirmeSure--;
 
   // sayaçlar
+  if (oyuncu.atisHazirlik > 0) {
+    oyuncu.atisHazirlik--;
+    if (oyuncu.atisHazirlik === 0) muzuBirak();
+  }
+  if (oyuncu.yemeSure > 0) oyuncu.yemeSure--;
+  oyuncu.nefes = (oyuncu.nefes || 0) + 1;
   if (oyuncu.muzBekle > 0) oyuncu.muzBekle--;
   if (oyuncu.kolBekle > 0) oyuncu.kolBekle--;
   if (oyuncu.kolSure > 0) oyuncu.kolSure--;
@@ -1528,225 +1544,286 @@ function gorilCiz(x, d) {
 }
 
 // ===========================================================
-//   ORANGUTAN  (kahramanımız — gerçek orangutan görünümü:
-//   yanak pedleri, tüylü silüet, çok uzun kollar, koyu deri yüz)
+//   ORANGUTAN  (kahramanımız — Uraz'ın gönderdiği fotoğraftaki
+//   GENÇ orangutan: ince uzun kollar, açık yuvarlak yüz, kocaman
+//   açılan ağız, seyrek kızıl-kahve tüyler. Yanak pedi YOK, o
+//   yaşlı erkeklerde olur.)
+//
+//   Hareketler: nefes alır, yürürken yalpalar, havadayken iki
+//   kolunu fotoğraftaki gibi yukarı kaldırır, muz atarken kolu
+//   geriye çekip savurur, topladığı muzu eline alıp AĞZINA ATAR
+//   ve çiğner, osururken eğilir, geğirirken ağzını sonuna kadar açar.
 // ===========================================================
 function orangutanCiz(x, y, b, o) {
   var ex = 1 + o.ezilme, ey = 1 - o.ezilme;
   var bakis = o.bakis || 1;
   var adim = Math.sin(o.adimFazi || 0);
   var yuruyor = o.yuruyor;
+  var havada = (o.yerde === false);
   var osuruyor = (o.osurukSure || 0) > 0;
   var gegiriyor = (o.gegirmeSure || 0) > 0;
+  var yemeSure = o.yemeSure || 0;
+  var yiyor = yemeSure > 0;
+  var hazirlik = o.atisHazirlik || 0;
+  var atiyor = (o.muzAtis || 0) > 0;
+  var nefes = Math.sin((o.nefes || sayac) * 0.055);      // sürekli nefes alıp verme
+
   var kolAci = 0;
   if (o.kolSure > 0) {
     var kt = 1 - o.kolSure / KOL_SURE;
-    kolAci = -1.5 + kt * 3.4;             // arkadan öne savurma
+    kolAci = 1.9 - kt * 3.5;              // arkadan öne savurma (sol arka -> sağ ön)
   }
-  var muzKol = o.muzAtis > 0 ? -1.3 : 0;
 
-  // gerçek orangutan tonları
-  var TUY_ACIK = "#d0621f", TUY = "#a8461a", TUY_KOYU = "#71290d";
-  var DERI = "#4e2f1e", DERI_ACIK = "#6d452c", KENAR = "#381807";
+  // fotoğraftaki tonlar
+  var TUY_ACIK = "#a25a2c", TUY = "#7d3f1c", TUY_KOYU = "#552710";
+  var DERI = "#b7825b", DERI_GOLGE = "#8f5f3d", AGIZ = "#48201a", KENAR = "#33170a";
 
   // --- yardımcılar ---
-  // kenarları tüy püsküllü organik şekil (düz elips yerine)
+  // seyrek tüylü organik gövde parçası
   function tuylu(cx, cy, rx, ry, renk, tuyBoy, faz) {
     ctx.fillStyle = renk;
     ctx.beginPath();
-    for (var i = 0; i <= 34; i++) {
-      var a = (i / 34) * 6.2832;
-      var uz = 1 + (Math.sin(i * 2.3 + faz) * 0.5 + 0.5) * tuyBoy;
+    for (var i = 0; i <= 32; i++) {
+      var a = (i / 32) * 6.2832;
+      var uz = 1 + (Math.sin(i * 2.1 + faz) * 0.5 + 0.5) * tuyBoy;
       var px = cx + Math.cos(a) * rx * uz;
       var py = cy + Math.sin(a) * ry * uz;
       if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
     }
     ctx.closePath(); ctx.fill();
   }
-  // yüzeye tüy telleri
-  function tuyTelleri(cx, cy, rx, ry, adet, boy, renk, faz) {
-    ctx.strokeStyle = renk; ctx.lineWidth = b * 0.02; ctx.lineCap = "round";
-    for (var i = 0; i < adet; i++) {
-      var a = (i / adet) * 6.2832 + faz;
-      var px = cx + Math.cos(a) * rx * 0.66, py = cy + Math.sin(a) * ry * 0.66;
-      ctx.beginPath();
-      ctx.moveTo(px, py);
-      ctx.lineTo(px + Math.cos(a) * boy, py + Math.sin(a) * boy);
-      ctx.stroke();
+  // İNCE UZUN KOL — omuzdan ele, dirsekten hafif kırık (fotoğraftaki gibi)
+  // aci: omuz açısı (0 = aşağı sarkık), dirsek: ek kırılma
+  function kolCiz(aci, dirsek, uzunluk, renk, elde) {
+    ctx.save();
+    ctx.rotate(aci);
+    var ust = uzunluk * 0.52, alt = uzunluk * 0.48;
+    // üst kol
+    ctx.fillStyle = renk; ctx.strokeStyle = KENAR; ctx.lineWidth = b * 0.032;
+    ctx.beginPath(); ctx.roundRect(-b * 0.075, 0, b * 0.15, ust, b * 0.075); ctx.fill(); ctx.stroke();
+    // dirsek + alt kol
+    ctx.translate(0, ust);
+    ctx.rotate(dirsek);
+    ctx.beginPath(); ctx.roundRect(-b * 0.065, -b * 0.04, b * 0.13, alt + b * 0.04, b * 0.065); ctx.fill(); ctx.stroke();
+    // kol tüyleri (seyrek, uzun — fotoğraftaki dağınık tüyler)
+    ctx.strokeStyle = TUY_KOYU; ctx.lineWidth = b * 0.013; ctx.lineCap = "round";
+    for (var i = 0; i < 4; i++) {
+      var yy = alt * (0.18 + i * 0.22);
+      ctx.beginPath(); ctx.moveTo(-b * 0.06, yy); ctx.lineTo(-b * 0.105, yy + b * 0.05); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(b * 0.06, yy); ctx.lineTo(b * 0.105, yy + b * 0.05); ctx.stroke();
     }
-  }
-  // uzun, tüylü kol + koyu derili el
-  function kolCiz(uzunluk, renk) {
-    ctx.fillStyle = renk;
-    ctx.strokeStyle = KENAR; ctx.lineWidth = b * 0.038;
-    ctx.beginPath(); ctx.roundRect(-b * 0.105, 0, b * 0.21, uzunluk, b * 0.105); ctx.fill(); ctx.stroke();
-    // kenar tüyleri
-    ctx.strokeStyle = TUY_KOYU; ctx.lineWidth = b * 0.015; ctx.lineCap = "round";
-    for (var i = 0; i < 6; i++) {
-      var yy = uzunluk * (0.14 + i * 0.145);
-      ctx.beginPath(); ctx.moveTo(-b * 0.095, yy); ctx.lineTo(-b * 0.135, yy + b * 0.042); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(b * 0.095, yy); ctx.lineTo(b * 0.135, yy + b * 0.042); ctx.stroke();
-    }
-    // el (koyu deri, uzun parmaklı)
-    ctx.fillStyle = DERI; ctx.strokeStyle = KENAR; ctx.lineWidth = b * 0.03;
-    ctx.beginPath(); ctx.ellipse(0, uzunluk + b * 0.015, b * 0.115, b * 0.09, 0, 0, 6.2832); ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = DERI; ctx.lineWidth = b * 0.032; ctx.lineCap = "round";
+    // el (açık deri, uzun parmaklar)
+    ctx.translate(0, alt);
+    ctx.fillStyle = DERI_GOLGE; ctx.strokeStyle = KENAR; ctx.lineWidth = b * 0.026;
+    ctx.beginPath(); ctx.ellipse(0, 0, b * 0.075, b * 0.065, 0, 0, 6.2832); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = DERI_GOLGE; ctx.lineWidth = b * 0.028; ctx.lineCap = "round";
     for (var f = -1; f <= 1; f++) {
       ctx.beginPath();
-      ctx.moveTo(f * b * 0.055, uzunluk + b * 0.05);
-      ctx.lineTo(f * b * 0.065, uzunluk + b * 0.135);
+      ctx.moveTo(f * b * 0.042, b * 0.03);
+      ctx.lineTo(f * b * 0.05, b * 0.105);
       ctx.stroke();
     }
+    if (elde === "muz") muzCiz(0, b * 0.11, 0.9, 1.05);
+    ctx.restore();
   }
 
-  // --- gölge ---
+  // --- gölge (havadayken küçülür) ---
   ctx.save();
-  ctx.globalAlpha = 0.26; ctx.fillStyle = "#000";
-  ctx.beginPath(); ctx.ellipse(x, y + b * 0.55, b * 0.46 * ex, b * 0.12, 0, 0, 6.2832); ctx.fill();
+  ctx.globalAlpha = havada ? 0.13 : 0.26; ctx.fillStyle = "#000";
+  ctx.beginPath();
+  ctx.ellipse(x, y + b * 0.56, b * (havada ? 0.30 : 0.42) * ex, b * 0.10, 0, 0, 6.2832);
+  ctx.fill();
   ctx.restore();
 
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(ex, ey);
-  ctx.scale(bakis, 1);                      // yön dönüşü
-  if (osuruyor) ctx.rotate(0.17);           // osururken öne eğilir
-  else if (gegiriyor) ctx.rotate(-0.11);    // geğirirken geriye yaslanır
+  ctx.scale(bakis, 1);                       // yön dönüşü
+  if (osuruyor) ctx.rotate(0.20);            // osururken öne eğilir
+  else if (gegiriyor) ctx.rotate(-0.12);     // geğirirken geriye yaslanır
+  else if (hazirlik > 0) ctx.rotate(-0.10);  // atmadan önce geriye yaylanır
+  else if (atiyor) ctx.rotate(0.14);         // atarken öne savrulur
+  if (yuruyor && !havada) ctx.rotate(Math.sin(o.adimFazi * 0.5) * 0.05);   // yalpalama
 
-  // --- ARKA KOL (çok uzun) ---
+  // ============ KOL AÇILARI ============
+  // (0 = aşağı sarkık, negatif = yukarı)
+  var arkaKol, arkaDirsek, onKol, onDirsek, onElde = null;
+  if (havada) {
+    // FOTOĞRAFTAKİ POZ: iki kol da yukarıda
+    arkaKol =  2.80 - nefes * 0.10; arkaDirsek =  0.20;
+    onKol   = -2.80 + nefes * 0.10; onDirsek   = -0.20;
+  } else if (yiyor) {
+    // muzu ağza götürme: kol kıvrılıp ağza gelir
+    var yt = 1 - yemeSure / YEME_SURESI;        // 0 -> 1
+    var kalkis = Math.min(1, yt / 0.35);        // ilk %35: kol ağza kalkar
+    arkaKol = 0.34 + nefes * 0.05; arkaDirsek = -0.18;
+    onKol = -0.32 + kalkis * 2.40;      // kol kıvrılıp ağza gelir
+    onDirsek = 0.20 + kalkis * 1.05;
+    if (yt < 0.45) onElde = "muz";              // ısırana kadar elinde
+  } else if (hazirlik > 0) {
+    // ATMA HAZIRLIĞI: kolu arkaya-yukarı çeker, muz elinde
+    var ht = 1 - hazirlik / ATIS_HAZIRLIK;
+    arkaKol = 0.55; arkaDirsek = -0.15;
+    onKol = -0.32 + ht * 2.82;          // tepeden arkaya yaslanır
+    onDirsek = 0.25 - ht * 0.55;
+    onElde = "muz";
+  } else if (atiyor) {
+    // FIRLATMA: kol tepeden öne savrulur
+    var at = 1 - o.muzAtis / 14;
+    arkaKol = 0.30; arkaDirsek = -0.20;
+    onKol = 2.50 - at * 4.10;           // tepeden öne fırlatma
+    onDirsek = -0.30 + at * 0.55;
+  } else if (kolAci !== 0) {
+    arkaKol = 0.40; arkaDirsek = -0.15;
+    onKol = kolAci; onDirsek = -0.10;
+  } else if (yuruyor) {
+    arkaKol =  0.30 - adim * 0.48; arkaDirsek = -0.20 - adim * 0.14;
+    onKol   = -0.30 + adim * 0.48; onDirsek   =  0.20 - adim * 0.14;
+  } else {
+    // duruyor: kollar sarkık, nefesle hafif sallanır
+    arkaKol =  0.36 + nefes * 0.06; arkaDirsek = -0.22;
+    onKol   = -0.32 - nefes * 0.06; onDirsek   =  0.20;
+  }
+
+  // --- ARKA KOL ---
   ctx.save();
-  ctx.translate(-b * 0.30, -b * 0.20);
-  ctx.rotate(0.30 + (yuruyor ? -adim * 0.42 : Math.sin(sayac * 0.04) * 0.07));
-  kolCiz(b * 0.82, TUY_KOYU);
+  ctx.translate(-b * 0.20, -b * 0.26);
+  kolCiz(arkaKol, arkaDirsek, b * 0.92, TUY_KOYU, null);
   ctx.restore();
 
-  // --- BACAKLAR (kısa, çarpık, tüylü) ---
-  var b1 = yuruyor ? adim * b * 0.11 : 0;
+  // --- BACAKLAR (ince, çarpık — fotoğraftaki gibi) ---
+  var bacakAcik = havada ? 0.34 : 0.16;
+  var b1 = (yuruyor && !havada) ? adim * b * 0.13 : 0;
   for (var bc = -1; bc <= 1; bc += 2) {
-    var bx2 = bc * b * 0.15 + (bc < 0 ? b1 : -b1);
     ctx.save();
-    ctx.translate(bx2, b * 0.20);
-    ctx.rotate(bc * 0.14);
-    ctx.fillStyle = TUY; ctx.strokeStyle = KENAR; ctx.lineWidth = b * 0.036;
-    ctx.beginPath(); ctx.roundRect(-b * 0.105, 0, b * 0.21, b * 0.30, b * 0.10); ctx.fill(); ctx.stroke();
-    // ayak (uzun parmaklı, koyu)
-    ctx.fillStyle = DERI;
-    ctx.beginPath(); ctx.ellipse(b * 0.02, b * 0.31, b * 0.135, b * 0.07, 0, 0, 6.2832); ctx.fill(); ctx.stroke();
+    ctx.translate(bc * b * 0.11, b * 0.16);
+    ctx.rotate(bc * bacakAcik + (bc < 0 ? b1 * 0.02 : -b1 * 0.02));
+    ctx.fillStyle = TUY; ctx.strokeStyle = KENAR; ctx.lineWidth = b * 0.03;
+    // uyluk
+    ctx.beginPath(); ctx.roundRect(-b * 0.075, 0, b * 0.15, b * 0.20, b * 0.07); ctx.fill(); ctx.stroke();
+    // baldır (hafif dışa)
+    ctx.translate(0, b * 0.19); ctx.rotate(-bc * 0.20);
+    ctx.beginPath(); ctx.roundRect(-b * 0.065, 0, b * 0.13, b * 0.18, b * 0.06); ctx.fill(); ctx.stroke();
+    // ayak (uzun, kavrayıcı)
+    ctx.fillStyle = DERI_GOLGE;
+    ctx.beginPath(); ctx.ellipse(bc * b * 0.02, b * 0.20, b * 0.10, b * 0.05, 0, 0, 6.2832); ctx.fill(); ctx.stroke();
     ctx.restore();
   }
 
-  // --- GÖVDE (geniş omuz + sarkık göbek, tüylü kenar) ---
-  tuylu(0, b * 0.02, b * 0.32, b * 0.30, TUY, 0.085, 0.7);          // göbek
-  tuylu(0, -b * 0.16, b * 0.30, b * 0.20, TUY_ACIK, 0.075, 2.1);    // omuz/göğüs
-  // karın derisi (seyrek tüylü)
-  ctx.fillStyle = "#8a4a2a";
-  ctx.beginPath(); ctx.ellipse(0, b * 0.08, b * 0.17, b * 0.15, 0, 0, 6.2832); ctx.fill();
+  // --- GÖVDE (ince, uzun; nefesle şişip iner) ---
+  var govdeR = 1 + nefes * 0.022;
+  tuylu(0, b * 0.02, b * 0.235 * govdeR, b * 0.26 * govdeR, TUY, 0.10, 0.7);
+  tuylu(0, -b * 0.17, b * 0.215, b * 0.16, TUY_ACIK, 0.09, 2.1);       // omuz/göğüs
+  // göğüs derisi (seyrek tüylü, açık)
+  ctx.fillStyle = "#96613a";
+  ctx.beginPath(); ctx.ellipse(0, b * 0.02, b * 0.115, b * 0.145, 0, 0, 6.2832); ctx.fill();
   // gövde tüy telleri
-  tuyTelleri(0, b * 0.02, b * 0.32, b * 0.30, 18, b * 0.042, TUY_KOYU, 0.4);
-  // gövde kenar çizgisi
-  ctx.strokeStyle = KENAR; ctx.lineWidth = b * 0.03;
-  ctx.beginPath(); ctx.ellipse(0, -b * 0.02, b * 0.31, b * 0.34, 0, 0, 6.2832); ctx.stroke();
+  ctx.strokeStyle = TUY_KOYU; ctx.lineWidth = b * 0.014; ctx.lineCap = "round";
+  for (var t = 0; t < 12; t++) {
+    var ta = (t / 12) * 6.2832 + 0.4;
+    var px = Math.cos(ta) * b * 0.20, py = b * 0.02 + Math.sin(ta) * b * 0.22;
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + Math.cos(ta) * b * 0.045, py + Math.sin(ta) * b * 0.045); ctx.stroke();
+  }
 
   // --- KAFA ---
-  var kY = -b * 0.46;
-  if (gegiriyor) kY -= b * 0.05;                 // geğirirken kafa kalkar
+  var kY = -b * 0.44;
+  if (gegiriyor) kY -= b * 0.06;              // geğirirken kafa kalkar
+  if (yiyor) kY += b * 0.01;
+  var kafaEgim = yuruyor ? Math.sin(o.adimFazi) * 0.05 : nefes * 0.03;
 
-  // saç kütlesi (dağınık, tüylü)
-  tuylu(0, kY - b * 0.02, b * 0.33, b * 0.30, TUY, 0.13, 1.9);
-  // tepe tüyleri
-  ctx.strokeStyle = TUY_ACIK; ctx.lineWidth = b * 0.026; ctx.lineCap = "round";
-  for (var tt = -3; tt <= 3; tt++) {
-    ctx.beginPath();
-    ctx.moveTo(tt * b * 0.075, kY - b * 0.245);
-    ctx.lineTo(tt * b * 0.082 + Math.sin(tt) * b * 0.018, kY - b * 0.30 - Math.abs(Math.cos(tt)) * b * 0.025);
-    ctx.stroke();
-  }
-  // yanak pedleri (erkek orangutanın alameti farikası — yassı, dışa taşan)
-  ctx.fillStyle = TUY_ACIK; ctx.strokeStyle = KENAR; ctx.lineWidth = b * 0.032;
-  for (var pd = -1; pd <= 1; pd += 2) {
-    ctx.beginPath();
-    ctx.ellipse(pd * b * 0.235, kY + b * 0.03, b * 0.145, b * 0.225, pd * 0.16, 0, 6.2832);
+  ctx.save();
+  ctx.translate(0, kY);
+  ctx.rotate(kafaEgim);
+
+  // saç/tüy kütlesi (dağınık, seyrek — fotoğraftaki gibi tepesi düz değil)
+  tuylu(0, -b * 0.02, b * 0.215, b * 0.205, TUY, 0.14, 1.9);
+  // kulaklar (küçük, yandan)
+  ctx.fillStyle = DERI_GOLGE; ctx.strokeStyle = KENAR; ctx.lineWidth = b * 0.022;
+  for (var kl = -1; kl <= 1; kl += 2) {
+    ctx.beginPath(); ctx.ellipse(kl * b * 0.20, b * 0.01, b * 0.035, b * 0.05, 0, 0, 6.2832);
     ctx.fill(); ctx.stroke();
-    // ped üstünde tüy çizgileri
-    ctx.strokeStyle = TUY_KOYU; ctx.lineWidth = b * 0.016;
-    for (var pt = -1; pt <= 1; pt++) {
-      ctx.beginPath();
-      ctx.moveTo(pd * b * 0.30, kY + pt * b * 0.07);
-      ctx.lineTo(pd * b * 0.185, kY + pt * b * 0.07 + b * 0.02);
-      ctx.stroke();
-    }
-    ctx.strokeStyle = KENAR; ctx.lineWidth = b * 0.032;
   }
-  // sakal / gerdan tüyleri
-  ctx.fillStyle = TUY_ACIK;
-  tuylu(0, kY + b * 0.20, b * 0.15, b * 0.09, TUY_ACIK, 0.20, 3.3);
-
-  // yüz (koyu, çıplak deri)
+  // yüz (açık, yuvarlak — genç orangutan)
   ctx.fillStyle = DERI;
-  ctx.beginPath(); ctx.ellipse(0, kY + b * 0.03, b * 0.175, b * 0.215, 0, 0, 6.2832); ctx.fill();
-  // alın / kaş çıkıntısı
-  ctx.fillStyle = DERI_ACIK;
-  ctx.beginPath(); ctx.ellipse(0, kY - b * 0.10, b * 0.155, b * 0.07, 0, 0, 6.2832); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, b * 0.02, b * 0.155, b * 0.175, 0, 0, 6.2832); ctx.fill();
+  // alın gölgesi
+  ctx.fillStyle = DERI_GOLGE;
+  ctx.beginPath(); ctx.ellipse(0, -b * 0.09, b * 0.135, b * 0.055, 0, 0, 6.2832); ctx.fill();
 
-  var kirp = o.gozKirp > 0 || osuruyor;    // osururken gözler kısılır (rahatlama)
-
+  var kirp = o.gozKirp > 0 || osuruyor;
   // kaşlar
-  ctx.strokeStyle = "#2e1408"; ctx.lineWidth = b * 0.028; ctx.lineCap = "round";
+  ctx.strokeStyle = "#3d1d0c"; ctx.lineWidth = b * 0.022; ctx.lineCap = "round";
   for (var kg = -1; kg <= 1; kg += 2) {
     ctx.beginPath();
-    ctx.moveTo(kg * b * 0.115, kY - b * 0.075);
-    ctx.lineTo(kg * b * 0.035, kY - b * 0.055);
+    ctx.moveTo(kg * b * 0.10, -b * 0.055);
+    ctx.lineTo(kg * b * 0.032, -b * 0.038);
     ctx.stroke();
   }
-  // gözler (küçük, birbirine yakın — gerçek orangutandaki gibi)
+  // gözler (küçük, koyu, birbirine yakın)
   for (var g2 = -1; g2 <= 1; g2 += 2) {
-    ctx.fillStyle = "#efe0cf";
+    ctx.fillStyle = "#f0e2d2";
     ctx.beginPath();
-    ctx.ellipse(g2 * b * 0.072, kY - b * 0.012, b * 0.042, kirp ? b * 0.008 : b * 0.038, 0, 0, 6.2832);
+    ctx.ellipse(g2 * b * 0.062, b * 0.002, b * 0.036, kirp ? b * 0.006 : b * 0.033, 0, 0, 6.2832);
     ctx.fill();
     if (!kirp) {
-      ctx.fillStyle = "#1d1008";
-      ctx.beginPath(); ctx.arc(g2 * b * 0.072 + b * 0.008, kY - b * 0.012, b * 0.025, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = "#1a0e06";
+      ctx.beginPath(); ctx.arc(g2 * b * 0.062 + b * 0.007, b * 0.002, b * 0.022, 0, 6.2832); ctx.fill();
       ctx.fillStyle = "#fff";
-      ctx.beginPath(); ctx.arc(g2 * b * 0.072 + b * 0.001, kY - b * 0.026, b * 0.009, 0, 6.2832); ctx.fill();
+      ctx.beginPath(); ctx.arc(g2 * b * 0.062 + b * 0.001, -b * 0.010, b * 0.008, 0, 6.2832); ctx.fill();
     }
   }
-  // burun (geniş, yassı — iki delik)
-  ctx.fillStyle = "#2e1408";
-  ctx.beginPath(); ctx.ellipse(-b * 0.03, kY + b * 0.075, b * 0.021, b * 0.016, 0.3, 0, 6.2832); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(b * 0.03, kY + b * 0.075, b * 0.021, b * 0.016, -0.3, 0, 6.2832); ctx.fill();
+  // burun (küçük, iki delik)
+  ctx.fillStyle = "#5c3520";
+  ctx.beginPath(); ctx.ellipse(-b * 0.024, b * 0.062, b * 0.017, b * 0.013, 0.3, 0, 6.2832); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(b * 0.024, b * 0.062, b * 0.017, b * 0.013, -0.3, 0, 6.2832); ctx.fill();
 
-  // ağız (çıkıntılı; duruma göre değişir)
-  ctx.fillStyle = "#3d2013";
-  ctx.beginPath(); ctx.ellipse(0, kY + b * 0.145, b * 0.105, b * 0.055, 0, 0, 6.2832); ctx.fill();
-  if (gegiriyor) {
-    // BUUURP — kocaman açık ağız
-    ctx.fillStyle = "#25100a";
-    ctx.beginPath(); ctx.ellipse(0, kY + b * 0.155, b * 0.085, b * 0.075, 0, 0, 6.2832); ctx.fill();
-    ctx.fillStyle = "#c96a6a";
-    ctx.beginPath(); ctx.ellipse(0, kY + b * 0.185, b * 0.045, b * 0.028, 0, 0, 6.2832); ctx.fill();
-  } else if (o.kolSure > 0 || o.muzAtis > 0) {
-    // bağırıyor
-    ctx.fillStyle = "#25100a";
-    ctx.beginPath(); ctx.ellipse(0, kY + b * 0.15, b * 0.055, b * 0.048, 0, 0, 6.2832); ctx.fill();
+  // ---- AĞIZ (duruma göre; fotoğraftaki kocaman açık ağız burada) ----
+  var agizAcik = 0;                       // 0 = kapalı, 1 = sonuna kadar açık
+  if (gegiriyor) agizAcik = 1;
+  else if (havada) agizAcik = 0.62;       // zıplarken bağırır
+  else if (o.kolSure > 0 || atiyor || hazirlik > 0) agizAcik = 0.5;
+  else if (yiyor) {
+    var yt2 = 1 - yemeSure / YEME_SURESI;
+    if (yt2 < 0.30) agizAcik = yt2 / 0.30 * 0.75;                    // ağzını açar
+    else if (yt2 < 0.45) agizAcik = 0.75 * (1 - (yt2 - 0.30) / 0.15); // ısırır (kapanır)
+    else agizAcik = 0.12 + Math.abs(Math.sin(yt2 * 46)) * 0.16;       // ÇİĞNER
+  }
+
+  ctx.fillStyle = DERI_GOLGE;
+  ctx.beginPath(); ctx.ellipse(0, b * 0.115, b * 0.095, b * 0.05, 0, 0, 6.2832); ctx.fill();
+  if (agizAcik > 0.06) {
+    var ag = b * (0.022 + agizAcik * 0.085);
+    ctx.fillStyle = AGIZ;
+    ctx.beginPath(); ctx.ellipse(0, b * (0.118 + agizAcik * 0.022), b * (0.055 + agizAcik * 0.032), ag, 0, 0, 6.2832); ctx.fill();
+    // alt dudak
+    ctx.strokeStyle = "#7a4526"; ctx.lineWidth = b * 0.016;
+    ctx.beginPath(); ctx.arc(0, b * (0.118 + agizAcik * 0.022), b * (0.055 + agizAcik * 0.032), 0.35, Math.PI - 0.35); ctx.stroke();
+    // dil (çok açıkken)
+    if (agizAcik > 0.55) {
+      ctx.fillStyle = "#c4676a";
+      ctx.beginPath(); ctx.ellipse(0, b * (0.145 + agizAcik * 0.030), b * 0.032, b * 0.020, 0, 0, 6.2832); ctx.fill();
+    }
   } else {
-    // sarkık dudak
-    ctx.strokeStyle = "#2e1408"; ctx.lineWidth = b * 0.022;
+    // kapalı: sarkık dudak çizgisi
+    ctx.strokeStyle = "#5c3520"; ctx.lineWidth = b * 0.018;
     ctx.beginPath();
-    ctx.moveTo(-b * 0.06, kY + b * 0.135);
-    ctx.quadraticCurveTo(0, kY + b * (osuruyor ? 0.175 : 0.165), b * 0.06, kY + b * 0.135);
+    ctx.moveTo(-b * 0.048, b * 0.108);
+    ctx.quadraticCurveTo(0, b * (osuruyor ? 0.145 : 0.132), b * 0.048, b * 0.108);
     ctx.stroke();
   }
-
-  // --- ÖN KOL (savurma / muz atma burada) ---
-  ctx.save();
-  ctx.translate(b * 0.30, -b * 0.20);
-  ctx.rotate(kolAci !== 0 ? kolAci : (muzKol !== 0 ? muzKol : (yuruyor ? adim * 0.46 : Math.sin(sayac * 0.04 + 1) * 0.09)));
-  var kolUz = o.kolSure > 0 ? b * 1.02 : b * 0.82;    // savururken uzar!
-  kolCiz(kolUz, TUY);
-  // elinde muz (atarken)
-  if (o.muzAtis > 0) {
-    ctx.save(); ctx.rotate(0.5); muzCiz(0, kolUz + b * 0.12, 0, 0.9); ctx.restore();
+  // çiğnerken yanakta hareket
+  if (yiyor && (1 - yemeSure / YEME_SURESI) > 0.45) {
+    ctx.fillStyle = DERI_GOLGE;
+    var cig = Math.abs(Math.sin((1 - yemeSure / YEME_SURESI) * 46)) * b * 0.02;
+    ctx.beginPath(); ctx.ellipse(b * 0.10, b * 0.09, b * 0.035 + cig, b * 0.03 + cig, 0, 0, 6.2832); ctx.fill();
   }
+  ctx.restore();   // kafa
+
+  // --- ÖN KOL (atma / yeme / savurma burada) ---
+  ctx.save();
+  ctx.translate(b * 0.20, -b * 0.26);
+  var onUzunluk = o.kolSure > 0 ? b * 1.06 : b * 0.92;   // savururken uzar
+  kolCiz(onKol, onDirsek, onUzunluk, TUY_ACIK, onElde);
   ctx.restore();
 
   ctx.restore();
@@ -1766,6 +1843,18 @@ function orangutanCiz(x, y, b, o) {
     ctx.globalAlpha = 1;
   }
 
+  // --- ÇİĞNEME KIRINTILARI ---
+  if (yiyor) {
+    var yt3 = 1 - yemeSure / YEME_SURESI;
+    if (yt3 > 0.45 && sayac % 7 === 0) {
+      parcaciklar.push({
+        x: x + bakis * b * 0.05, y: y - b * 0.30,
+        vx: (Math.random() - 0.5) * 1.6, vy: 0.4 + Math.random(),
+        omur: 18, boy: 1.5 + Math.random() * 1.5, renk: "#ffd84d"
+      });
+    }
+  }
+
   // --- KALKAN ---
   if (o.kalkan > 0) {
     var sol = o.kalkan < 45 && Math.floor(sayac / 5) % 2 === 0;   // bitmeden yanıp söner
@@ -1779,7 +1868,6 @@ function orangutanCiz(x, y, b, o) {
     ctx.beginPath(); ctx.arc(x, y - b * 0.1, b * 0.95, 0, 6.2832); ctx.fill();
     ctx.strokeStyle = "#7fffc0"; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(x, y - b * 0.1, b * 0.95, 0, 6.2832); ctx.stroke();
-    // dönen yapraklar
     for (var yp = 0; yp < 5; yp++) {
       var a2 = sayac * 0.05 + yp * 1.256;
       ctx.save();
@@ -1793,7 +1881,7 @@ function orangutanCiz(x, y, b, o) {
     ctx.globalAlpha = 1;
   }
 
-  // --- GEĞİRME ÇİZGİLERİ (ağızdan çıkan hava) ---
+  // --- GEĞİRME ÇİZGİLERİ ---
   if (gegiriyor) {
     ctx.save();
     ctx.globalAlpha = 0.6;
@@ -2023,9 +2111,16 @@ function menuyuCiz() {
   ctx.fillText(TARIH, GENISLIK / 2, 276);
 
   // maskot orangutan
-  orangutanCiz(GENISLIK / 2, 355 + Math.sin(sayac * 0.06) * 7, 74, {
-    bakis: 1, ezilme: Math.sin(sayac * 0.06) * 0.06, gozKirp: 0,
-    adimFazi: sayac * 0.06, yuruyor: false, kolSure: 0, muzAtis: 0, kalkan: 0
+  // maskot boş durmasın: bekler -> muz yer -> sevinip zıplar (döngü)
+  var mFaz = sayac % 420;
+  var mYeme = (mFaz > 90 && mFaz < 148) ? (148 - mFaz) : 0;
+  var mZipla = (mFaz > 250 && mFaz < 296);
+  var mZiplaY = mZipla ? -Math.sin((mFaz - 250) / 46 * Math.PI) * 30 : 0;
+  orangutanCiz(GENISLIK / 2, 358 + Math.sin(sayac * 0.06) * 5 + mZiplaY, 76, {
+    bakis: 1, ezilme: Math.sin(sayac * 0.06) * 0.05, gozKirp: 0,
+    adimFazi: sayac * 0.06, yuruyor: false, kolSure: 0, muzAtis: 0, kalkan: 0,
+    yerde: !mZipla, yemeSure: mYeme, atisHazirlik: 0, nefes: sayac,
+    osurukSure: 0, gegirmeSure: 0
   });
 
   var nabiz = 1 + Math.sin(sayac * 0.07) * 0.03;
