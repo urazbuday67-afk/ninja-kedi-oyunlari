@@ -10,6 +10,7 @@ Uzak hedef: Play Store'daki **Level Devil** tarzı bir oyun. Oraya küçük oyun
 |--------|------|------------|
 | `1-yakala/` | **Yıldız Yakalayan Kedi** | Yıldız topla, kuyruk kap, çürük kuyruktan kaç, boss'ları yen |
 | `2-kac/`    | **Meteordan Kaçan Kedi**   | Her yönden gelen meteorlardan kaç, çakra küresi topla |
+| `3-zipla/`  | **Zıplayan Kedi**          | Zıpla, sahte bloklardan ve tuzaklardan kaç, bayrağa ulaş (Level Devil tarzı) |
 
 ## ▶️ Nasıl oynanır / çalıştırılır?
 
@@ -25,6 +26,7 @@ node ".claude/sunucu.js"
 Sonra tarayıcıda:
 - 1. oyun: http://localhost:8123/1-yakala/
 - 2. oyun: http://localhost:8123/2-kac/
+- 3. oyun: http://localhost:8123/3-zipla/
 
 > Not: Sunucu için sadece [Node.js](https://nodejs.org) kurulu olması yeterli. Başka hiçbir şey gerekmez.
 
@@ -35,6 +37,20 @@ Sonra tarayıcıda:
 - **C** → kuyrukları savur (boss'a yakından vur)
 - **G** → renk değiştir · **B** → arka plan · **K** → düşen obje türü
 - **BOŞLUK** → başlat / duraklat · **F** → tam ekran · **M** → ses
+
+## 🕹️ Kontroller (3. oyun)
+
+- **← →** veya **A D** → yürü · **BOŞLUK / W / ↑** → zıpla (havada bir kez daha zıplayabilirsin)
+- Zıplama tuşunu **kısa** basarsan alçak, **basılı tutarsan** yüksek zıplarsın
+- **R** → bölümü baştan · **P** → duraklat · **F** → tam ekran · **M** → ses
+- Menüde **← →** ile açılmış bölümlerden birini seç
+
+## 📱 Telefonda oynama
+
+- Oyunlar telefon ekranını tamamen kaplar; siyah bant kalmaz. Telefonu **yan** tut.
+- Sağ üstteki **⛶** düğmesi tam ekrana alır ve ekranı yatay kilitler (Android Chrome). iPhone'da Safari tam ekrana izin vermeyebilir; en iyisi **Paylaş → Ana Ekrana Ekle** — uygulama gibi, tam ekran açılır.
+- 1. ve 2. oyun: parmağını sürükle = kedi oraya gider; sağ alttaki düğmeler = saldırı. İki parmak aynı anda çalışır.
+- 3. oyun: ekranın **sol yarısı** yürü (sol/sağ düğmesine yakın tarafa bas), **sağ yarısı** zıpla. Düğmeye tam basmak gerekmez.
 
 ## 🛠️ Kod nasıl düzenlenir?
 
@@ -50,6 +66,7 @@ Kod içindeki değişken ve fonksiyon adları **Türkçe** yazıldı ki okunmas�
 oyun projesi/
 ├── 1-yakala/          # 1. oyun (index.html + simgeler + PWA dosyaları)
 ├── 2-kac/             # 2. oyun
+├── 3-zipla/           # 3. oyun (platform / Level Devil tarzı)
 ├── yayin/             # mağazaya/siteye yüklenmeye hazır .zip dosyaları
 ├── .claude/           # yerel geliştirme sunucusu (sunucu.js)
 ├── OYUNLARI BASLAT.cmd # çift tıkla → sunucu açılır + oyun başlar
