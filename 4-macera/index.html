@@ -575,7 +575,7 @@ document.addEventListener("keyup", function (e) { tuslar[e.key] = false; });
 var dokunmatikVar = (("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0);
 
 // Kumanda şeritleri: dokunmatikte tuval GENISLIK yerine GENISLIK + 2*KENAR olur.
-var KENAR_GENIS = 150;
+var KENAR_GENIS = 200;       // ◀ ▶ yan yana sığsın, sağdaki düğmeler de irileşsin
 var KENAR = 0;
 function kumandaAlaniniAyarla() {
   var yeni = dokunmatikVar ? KENAR_GENIS : 0;
@@ -599,16 +599,17 @@ function dokunmaDugmeleri() {
   // Yatay telefonda ekran oyundan çok daha geniş; bu şeritler o boşa giden
   // alanı kullanıyor, yani oyun küçülmüyor ve parmaklar oyunu kapatmıyor.
   if (KENAR) {
-    var s1 = KENAR + GENISLIK + 6, s2 = s1 + 74, b2 = 64;
+    // ◀ ▶ YAN YANA (üst üsteyken karıştırılıyordu), sağdaki altı düğme 2x3 ızgarada
+    var s1 = KENAR + GENISLIK + 8, s2 = s1 + 100, b2 = 84;
     return {
-      sol:     { x: 30, y: YUKSEKLIK - 232, boy: 92, isaret: "◀",  renk: "#6fa8ff" },
-      sag:     { x: 30, y: YUKSEKLIK - 120, boy: 92, isaret: "▶",  renk: "#6fa8ff" },
-      zipla:   { x: s2, y: YUKSEKLIK - 76,  boy: b2, isaret: "⤒",  renk: "#5cc06a" },
-      kol:     { x: s1, y: YUKSEKLIK - 76,  boy: b2, isaret: "✊", renk: "#ff8a5a" },
-      kalkan:  { x: s2, y: YUKSEKLIK - 150, boy: b2, isaret: "🛡", renk: "#6fe0a0" },
-      muz:     { x: s1, y: YUKSEKLIK - 150, boy: b2, isaret: "🍌", renk: "#ffd84d" },
-      osuruk:  { x: s1, y: YUKSEKLIK - 224, boy: b2, isaret: "💨", renk: "#9ad86a", gizli: true },
-      gegirme: { x: s2, y: YUKSEKLIK - 224, boy: b2, isaret: "🥤", renk: "#ffb64d", gizli: true }
+      sol:     { x: 8,   y: YUKSEKLIK - 148, boy: 84, isaret: "◀",  renk: "#6fa8ff" },
+      sag:     { x: 108, y: YUKSEKLIK - 148, boy: 84, isaret: "▶",  renk: "#6fa8ff" },
+      zipla:   { x: s2, y: YUKSEKLIK - 92,  boy: b2, isaret: "⤒",  renk: "#5cc06a" },
+      kol:     { x: s1, y: YUKSEKLIK - 92,  boy: b2, isaret: "✊", renk: "#ff8a5a" },
+      kalkan:  { x: s2, y: YUKSEKLIK - 196, boy: b2, isaret: "🛡", renk: "#6fe0a0" },
+      muz:     { x: s1, y: YUKSEKLIK - 196, boy: b2, isaret: "🍌", renk: "#ffd84d" },
+      osuruk:  { x: s1, y: YUKSEKLIK - 300, boy: b2, isaret: "💨", renk: "#9ad86a", gizli: true },
+      gegirme: { x: s2, y: YUKSEKLIK - 300, boy: b2, isaret: "🥤", renk: "#ffb64d", gizli: true }
     };
   }
   var b = 76, k = 22, kucuk = 58;

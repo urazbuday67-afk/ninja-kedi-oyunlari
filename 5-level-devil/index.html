@@ -118,7 +118,7 @@ var ZEMIN_KALIN = 22;        // platform kalınlığı
 // yoksa parmaklar tam da karakterin yürüdüğü yeri kapatıyor.
 // Telefon yatayken ekran zaten oyundan daha geniş olduğu için bu şeritler
 // bedavaya geliyor: oyun küçülmüyor, boşa giden siyah alan kullanılıyor.
-var KENAR_GENIS = 150;       // tek bir yan şeridin genişliği
+var KENAR_GENIS = 200;       // tek bir yan şeridin genişliği (◀ ▶ yan yana sığsın)
 var KENAR = 0;               // şu anki değer (masaüstünde 0, telefonda KENAR_GENIS)
 
 // ------------------- SES -------------------
@@ -1494,9 +1494,10 @@ var dokunmatik = false;
 function dugmeler() {
   var sagSeritX = KENAR + G;
   return {
-    sol:   { x: 10,             y: Y - 210, g: KENAR - 20, h: 96, yazi: "◀" },
-    sag:   { x: 10,             y: Y - 104, g: KENAR - 20, h: 96, yazi: "▶" },
-    zipla: { x: sagSeritX + 10, y: Y - 210, g: KENAR - 20, h: 202, yazi: "⤒" }
+    // ◀ ▶ YAN YANA (üst üsteyken başparmakla karıştırılıyordu)
+    sol:   { x: 8,             y: Y - 142, g: 88,  h: 126, yazi: "◀" },
+    sag:   { x: 104,           y: Y - 142, g: 88,  h: 126, yazi: "▶" },
+    zipla: { x: sagSeritX + 8, y: Y - 240, g: 184, h: 224, yazi: "⤒" }
   };
 }
 
@@ -1519,9 +1520,9 @@ function kumandayiCiz() {
     cx.fill();
     cx.globalAlpha = basik ? 1 : 0.75;
     cx.fillStyle = "#1a1030";
-    cx.font = "700 38px Nunito, Arial";
+    cx.font = "700 50px Nunito, Arial";
     cx.textAlign = "center";
-    cx.fillText(b.yazi, b.x + b.g / 2, b.y + b.h / 2 + 14);
+    cx.fillText(b.yazi, b.x + b.g / 2, b.y + b.h / 2 + 18);
     cx.textAlign = "left";
     cx.globalAlpha = 1;
   });
@@ -1681,11 +1682,10 @@ function dokunmalariIsle(olay) {
   var d = dugmeler();
   for (var i = 0; i < olay.touches.length; i++) {
     var p = tuvalKoordinati(olay.touches[i]);          // düğmeler tuval koordinatında
-    if (p.x < KENAR) {                                  // sol şerit: üstü ◀, altı ▶
-      if (p.y >= d.sol.y - 20 && p.y < d.sag.y - 6) dokunSol = true;
-      else if (p.y >= d.sag.y - 6) dokunSag = true;
+    if (p.x < KENAR) {                                  // sol şerit: solu ◀, sağı ▶
+      if (p.x < KENAR / 2) dokunSol = true; else dokunSag = true;
     } else if (p.x > KENAR + G) {                       // sağ şeridin tamamı zıplama
-      if (p.y >= d.zipla.y - 20) dokunZipla = true;
+      dokunZipla = true;
     } else if (baslaDugmesineBasildi({ x: p.x - KENAR, y: p.y })) {
       oyunuBaslat();
     }
