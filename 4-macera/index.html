@@ -279,10 +279,12 @@ function olcuAyarla() {
     alanG = window.innerWidth;
     alanY = window.innerHeight - altBosluk;
   }
-  var olcek = Math.min(alanG / GENISLIK, alanY / YUKSEKLIK);
+  // tuval yan şeritlerle birlikte büyümüş olabilir; ölçek gerçek boyuta göre
+  var tG = ekran.width, tY = ekran.height;
+  var olcek = Math.min(alanG / tG, alanY / tY);
   if (!tamEkranMi()) olcek = Math.min(olcek, 1);
-  ekran.style.width  = Math.round(GENISLIK * olcek) + "px";
-  ekran.style.height = Math.round(YUKSEKLIK * olcek) + "px";
+  ekran.style.width  = Math.round(tG * olcek) + "px";
+  ekran.style.height = Math.round(tY * olcek) + "px";
 }
 window.addEventListener("resize", olcuAyarla);
 document.addEventListener("fullscreenchange", olcuAyarla);
@@ -393,7 +395,7 @@ function bolumuKur(no) {
       tip: d[0], x: d[1], y: d[2], bx: d[1], by: d[2],
       menzil: d[3] || 100,
       can: bilgi.can, maxCan: bilgi.can, g: bilgi.g, yuk: bilgi.y,
-      yon: -1, sayac: Math.floor(Math.random() * 60), vurulma: 0, olu: false,
+      yon: -1, bakis: -1, sayac: Math.floor(Math.random() * 60), vurulma: 0, olu: false,
       vy: 0, yerde: true, uyandi: false, ozel: 0, kizgin: 0,
       bayilma: 0, kacma: 0          // osuruk bayıltır, geğirme kaçırır
     };
@@ -571,10 +573,44 @@ document.addEventListener("keyup", function (e) { tuslar[e.key] = false; });
 
 // ---- DOKUNMATİK ----
 var dokunmatikVar = (("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0);
+
+// Kumanda şeritleri: dokunmatikte tuval GENISLIK yerine GENISLIK + 2*KENAR olur.
+var KENAR_GENIS = 150;
+var KENAR = 0;
+function kumandaAlaniniAyarla() {
+  var yeni = dokunmatikVar ? KENAR_GENIS : 0;
+  if (yeni === KENAR && ekran.width === GENISLIK + 2 * yeni) return;
+  KENAR = yeni;
+  ekran.width = GENISLIK + 2 * KENAR;
+  ekran.height = YUKSEKLIK;
+  olcuAyarla();
+}
+function kumandaSeritleriniCiz() {
+  if (!KENAR) return;
+  ctx.fillStyle = "#07140d";
+  ctx.fillRect(0, 0, KENAR, YUKSEKLIK);
+  ctx.fillRect(KENAR + GENISLIK, 0, KENAR, YUKSEKLIK);
+}
 var solBasili = false, sagBasili = false;
 var basiliDugmeler = { zipla: false, muz: false, kol: false, kalkan: false, osuruk: false, gegirme: false };
 
 function dokunmaDugmeleri() {
+  // TELEFONDA: düğmeler oyunun İÇİNE değil, iki yanındaki kumanda şeritlerine.
+  // Yatay telefonda ekran oyundan çok daha geniş; bu şeritler o boşa giden
+  // alanı kullanıyor, yani oyun küçülmüyor ve parmaklar oyunu kapatmıyor.
+  if (KENAR) {
+    var s1 = KENAR + GENISLIK + 6, s2 = s1 + 74, b2 = 64;
+    return {
+      sol:     { x: 30, y: YUKSEKLIK - 232, boy: 92, isaret: "◀",  renk: "#6fa8ff" },
+      sag:     { x: 30, y: YUKSEKLIK - 120, boy: 92, isaret: "▶",  renk: "#6fa8ff" },
+      zipla:   { x: s2, y: YUKSEKLIK - 76,  boy: b2, isaret: "⤒",  renk: "#5cc06a" },
+      kol:     { x: s1, y: YUKSEKLIK - 76,  boy: b2, isaret: "✊", renk: "#ff8a5a" },
+      kalkan:  { x: s2, y: YUKSEKLIK - 150, boy: b2, isaret: "🛡", renk: "#6fe0a0" },
+      muz:     { x: s1, y: YUKSEKLIK - 150, boy: b2, isaret: "🍌", renk: "#ffd84d" },
+      osuruk:  { x: s1, y: YUKSEKLIK - 224, boy: b2, isaret: "💨", renk: "#9ad86a", gizli: true },
+      gegirme: { x: s2, y: YUKSEKLIK - 224, boy: b2, isaret: "🥤", renk: "#ffb64d", gizli: true }
+    };
+  }
   var b = 76, k = 22, kucuk = 58;
   var sagX = GENISLIK - k - b;
   var altY = YUKSEKLIK - k - b;
@@ -605,9 +641,10 @@ function noktaHangiDugme(n) {
   }
   return null;
 }
+// Tuval koordinatı — yan şeritler dahil (düğmeler bu koordinatta duruyor)
 function dokunusKonumu(t) {
   var k = ekran.getBoundingClientRect();
-  return { x: (t.clientX - k.left) * (GENISLIK / k.width), y: (t.clientY - k.top) * (YUKSEKLIK / k.height) };
+  return { x: (t.clientX - k.left) * (ekran.width / k.width), y: (t.clientY - k.top) * (ekran.height / k.height) };
 }
 function dokunmalariIsle(dokunuslar) {
   solBasili = sagBasili = false;
@@ -627,7 +664,8 @@ function dokunmalariIsle(dokunuslar) {
   basiliDugmeler = yeni;
 }
 ekran.addEventListener("touchstart", function (e) {
-  dokunmatikVar = true; sesiUyandir(); e.preventDefault();
+  if (!dokunmatikVar) { dokunmatikVar = true; kumandaAlaniniAyarla(); }
+  sesiUyandir(); e.preventDefault();
   if (durum === "menu") { oyunuBaslat(); sesBolum(); return; }
   if (durum === "duraklat") { durum = "oyun"; sesDevam(); return; }
   if (durum === "bitti" || durum === "kazandi") { oyunuBaslat(); return; }
@@ -725,6 +763,38 @@ function tasAt(d, hedefX, hedefY, hiz) {
 }
 
 // Yere bıraktığın kakaya basan düşman yavaşlar (kayar gibi)
+// Arının POPOSUNDAKİ İĞNE. Arının gövdesine dokunmak zararsız; canını yakan
+// sadece bu küçük kutu. Arı hep sana bakar, iğne arkada kalır — ama çok
+// yaklaşınca yönü kilitlenir, arı senin yanından geçerse iğne sana denk gelir.
+function ariIgnesiKutusu(d) {
+  var yon = d.bakis || 1;
+  var my = d.y - d.yuk / 2;
+  var x1 = d.x - yon * 28, x2 = d.x - yon * 13;
+  return { x: Math.min(x1, x2), y: my - 7, g: Math.abs(x2 - x1), yuk: 18 };
+}
+
+// Uçamayan bir düşmanın ayağının altında zemin var mı? Yoksa düşer.
+// (Yılan geğirmeden kaçarken boşlukların üstünden yürüyüp geçiyordu.)
+function dusmanaYercekimi(d) {
+  var eskiY = d.y, i, p;
+  for (i = 0; i < aktifPlatformlar.length; i++) {
+    p = aktifPlatformlar[i];
+    if (d.x > p.x - 4 && d.x < p.x + p.g + 4 && eskiY >= p.y - 8 && eskiY <= p.y + 8) {
+      d.y = p.y; d.vy = 0; d.yerde = true; return;      // zemin var, sağlam duruyor
+    }
+  }
+  d.yerde = false;
+  d.vy += YERCEKIMI;
+  d.y += d.vy;
+  for (i = 0; i < aktifPlatformlar.length; i++) {       // düşerken alttaki bir platforma konabilir
+    p = aktifPlatformlar[i];
+    if (d.vy > 0 && d.x > p.x && d.x < p.x + p.g && eskiY <= p.y && d.y >= p.y) {
+      d.y = p.y; d.vy = 0; d.yerde = true; return;
+    }
+  }
+  if (d.y > YUKSEKLIK + 120) dusmanaHasar(d, d.can + 99);   // uçuruma düştü
+}
+
 function kakayaBastiMi(d) {
   for (var i = 0; i < kakalar.length; i++) {
     var k = kakalar[i];
@@ -742,6 +812,9 @@ function dusmanlariGuncelle() {
     if (d.kizgin > 0) d.kizgin--;
     var uzaklik = Math.abs(d.x - oyuncu.x);
 
+    // YILAN KAKAYA DEĞERSE ÖLÜR. (Diğer düşmanlar sadece yavaşlar.)
+    if (d.tip === "yilan" && kakayaBastiMi(d)) { dusmanaHasar(d, d.can + 99); continue; }
+
     // OSURUK BAYGINLIĞI: hiç kımıldamaz, saldırmaz, sana da zarar veremez
     if (d.bayilma > 0) {
       d.bayilma--;
@@ -755,6 +828,7 @@ function dusmanlariGuncelle() {
       var kacHizi = KACMA_HIZI * (kakayaBastiMi(d) ? KAKA_YAVASLIK : 1);
       d.x += (d.kacYonu || 1) * kacHizi;
       if (d.tip === "ari") d.y += Math.sin(d.sayac * 0.4) * 2.4;   // panikle uçar
+      else if (d.tip === "yilan") dusmanaYercekimi(d);             // yılan uçamaz: boşlukta düşer
       continue;
     }
 
@@ -769,11 +843,14 @@ function dusmanlariGuncelle() {
       d.y = d.by + Math.sin(d.sayac * 0.06) * (d.menzil * 0.35);
       if (uzaklik < ARI_MENZIL) {
         d.uyandi = true;
-        var yon = oyuncu.x > d.x ? 1 : -1;
-        d.x += yon * ARI_HIZ * kakaFrenI;
+        // Çok yaklaşınca yön KİLİTLENİR: arı yanından geçip gider ve iğnesi
+        // sana denk gelir. Yoksa iğne hep arkada kalır, hiç batmazdı.
+        if (uzaklik > 26) d.bakis = oyuncu.x > d.x ? 1 : -1;
+        d.x += (d.bakis || 1) * ARI_HIZ * kakaFrenI;
         d.y += (oyuncu.y - d.y) * 0.012;
       } else {
         d.x += Math.sin(d.sayac * 0.02) * 0.7;
+        d.bakis = oyuncu.x > d.x ? 1 : -1;
       }
     }
     else if (d.tip === "maymun") {
@@ -788,11 +865,13 @@ function dusmanlariGuncelle() {
 
     // oyuncuya değme (bayılmışsa zararsız — üstünden geçebilirsin)
     if (d.bayilma <= 0 && kutuCarpisti(oyuncuKutusu(), dusmanKutusu(d))) {
+      // ARI: gövdesine dokunmak zararsız, canını yakan sadece popodaki iğne
+      var zararli = d.tip !== "ari" || kutuCarpisti(oyuncuKutusu(), ariIgnesiKutusu(d));
       if (oyuncu.kalkan > 0) {
         // kalkan düşmanı iter
         d.x += (d.x > oyuncu.x ? 1 : -1) * 6;
         if (d.tip !== "goril") dusmanaHasar(d, 1);
-      } else {
+      } else if (zararli) {
         oyuncuyaHasar();
       }
     }
@@ -1402,14 +1481,16 @@ function ariCiz(x, d) {
   for (var s = -1; s <= 1; s++) {
     ctx.beginPath(); ctx.ellipse(x + s * 7, y, 2.6, 11, 0, 0, 6.2832); ctx.fill();
   }
-  // iğne
-  ctx.fillStyle = "#3a3020";
-  var yon = oyuncu && oyuncu.x > d.x ? 1 : -1;
+  // İĞNE — tehlikeli olan TEK yer burası, o yüzden kırmızı ve biraz iri çizilir
+  var yon = d.bakis || 1;
+  ctx.fillStyle = "#ff4d5e";
   ctx.beginPath();
-  ctx.moveTo(x - yon * 15, y);
-  ctx.lineTo(x - yon * 26, y + 2);
-  ctx.lineTo(x - yon * 15, y + 5);
+  ctx.moveTo(x - yon * 14, y - 4);
+  ctx.lineTo(x - yon * 28, y + 1);
+  ctx.lineTo(x - yon * 14, y + 6);
   ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "rgba(255,120,140,0.55)"; ctx.lineWidth = 2;
+  ctx.stroke();
   // kafa + göz
   ctx.fillStyle = "#241a08";
   ctx.beginPath(); ctx.arc(x + yon * 13, y - 2, 8, 0, 6.2832); ctx.fill();
@@ -2103,7 +2184,7 @@ function menuyuCiz() {
   ctx.fillText("ORANGUTAN MACERASI", GENISLIK / 2, 160 + suzul);
   ctx.shadowBlur = 0;
   ctx.font = "800 13px " + YAZI_FONT; ctx.fillStyle = "#9fe0b8";
-  ctx.fillText("4. OYUN  ·  DÜŞMANLI PLATFORM MACERASI", GENISLIK / 2, 196 + suzul);
+  ctx.fillText("2. OYUN  ·  DÜŞMANLI PLATFORM MACERASI", GENISLIK / 2, 196 + suzul);
 
   ctx.font = "600 20px " + BASLIK_FONT; ctx.fillStyle = "#fff";
   ctx.fillText(YAPIMCI_1 + "  &  " + YAPIMCI_2, GENISLIK / 2, 254);
@@ -2180,6 +2261,7 @@ function dongu() {
 
   // ---- ÇİZ ----
   ctx.save();
+  ctx.translate(KENAR, 0);              // dünya, sol kumanda şeridinin sağından başlar
   if (sarsinti > 0.4) { ctx.translate((Math.random() - 0.5) * sarsinti, (Math.random() - 0.5) * sarsinti); sarsinti *= 0.88; } else sarsinti = 0;
   arkaPlaniCiz();
 
@@ -2201,7 +2283,6 @@ function dongu() {
     ctx.globalAlpha = 1;
     karakteriCiz();
     bilgileriCiz();
-    dokunmaDugmeleriniCiz();
   }
 
   if (durum === "menu") menuyuCiz();
@@ -2214,6 +2295,9 @@ function dongu() {
   if (durum === "kazandi") bitisEkraniCiz(true);
 
   ctx.restore();
+  // şeritler ve düğmeler dünyanın DIŞINDA — sarsıntıdan da etkilenmezler
+  kumandaSeritleriniCiz();
+  dokunmaDugmeleriniCiz();
   requestAnimationFrame(dongu);
 }
 
@@ -2228,6 +2312,7 @@ bolumYazi = 0;
 bayrakSalla = 0;
 bolumuKur(0);
 durum = "menu";
+kumandaAlaniniAyarla();      // dokunmatikse tuvali kumanda şeritleriyle kur
 dongu();
 </script>
 
