@@ -2,7 +2,7 @@
 // Oyun dosyası her zaman ÖNCE internetten alınır (network-first);
 // güncelleme yayınlayınca oyuncular anında yeni sürümü görür.
 // Oyunu her yayınladığında SURUM numarasını bir artır.
-var SURUM = "v5";
+var SURUM = "v6";
 var ONBELLEK = "orangutan-" + SURUM;
 
 var TEMEL_DOSYALAR = [

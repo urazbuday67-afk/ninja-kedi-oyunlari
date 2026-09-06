@@ -783,7 +783,8 @@ document.addEventListener("keydown", function (e) {
     if (durum === "menu") { oyunuBaslat(secilenBolum - 1); sesBolum(); }
     else if (durum === "oyun") ziplaBasla();
     else if (durum === "duraklat") { durum = "oyun"; sesDevam(); }
-    else if (durum === "bitti" || durum === "kazandi") { oyunuBaslat(0); }
+    else if (durum === "bitti") { oyunuBaslat(bolumNo); }          // o bolumun basindan
+    else if (durum === "kazandi") { oyunuBaslat(0); }
     return;
   }
   if (!e.repeat && e.key === "ArrowUp") { e.preventDefault(); ziplaBasla(); }
@@ -919,7 +920,8 @@ ekran.addEventListener("touchstart", function (e) {
   sesiUyandir(); e.preventDefault();
   if (durum === "menu") { menuyeDokunuldu(e.changedTouches[0]); return; }
   if (durum === "duraklat") { durum = "oyun"; sesDevam(); return; }
-  if (durum === "bitti" || durum === "kazandi") { oyunuBaslat(0); return; }
+  if (durum === "bitti") { oyunuBaslat(bolumNo); return; }        // o bolumun basindan
+  if (durum === "kazandi") { oyunuBaslat(0); return; }
   dokunmalariIsle(e.touches);
 }, { passive: false });
 ekran.addEventListener("touchmove", function (e) { e.preventDefault(); if (durum === "oyun") dokunmalariIsle(e.touches); }, { passive: false });
@@ -932,7 +934,8 @@ ekran.addEventListener("touchcancel", function () { solBasili = sagBasili = fals
 ekran.addEventListener("click", function (olay) {
   sesiUyandir();
   if (durum === "menu") { menuyeDokunuldu(olay); }
-  else if (durum === "bitti" || durum === "kazandi") oyunuBaslat(0);
+  else if (durum === "bitti") oyunuBaslat(bolumNo);               // o bolumun basindan
+  else if (durum === "kazandi") oyunuBaslat(0);
 });
 
 // ===========================================================
@@ -2497,7 +2500,10 @@ function bitisEkraniCiz(kazandiMi) {
   ctx.font = "700 16px " + YAZI_FONT; ctx.fillStyle = "#ffd84d";
   ctx.fillText("Topladığın muz: " + muzPuan, GENISLIK / 2, 322);
   ctx.font = "700 15px " + YAZI_FONT; ctx.fillStyle = "#9fe0b8";
-  ctx.fillText(dokunmatikVar ? "Dokun · yeniden başla" : "BOŞLUK · yeniden başla", GENISLIK / 2, 366);
+  ctx.fillText(kazandiMi
+    ? (dokunmatikVar ? "Dokun · baştan başla" : "BOŞLUK · baştan başla")
+    : (dokunmatikVar ? "Dokun · " + (bolumNo + 1) + ". bölümü tekrar dene"
+                     : "BOŞLUK · " + (bolumNo + 1) + ". bölümü tekrar dene"), GENISLIK / 2, 366);
 }
 
 // ===========================================================
