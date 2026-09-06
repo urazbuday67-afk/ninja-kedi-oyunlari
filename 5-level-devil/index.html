@@ -201,7 +201,9 @@ function testereSesiAyarla(seviye) {
 
 // ------------------- BÖLÜMLER -------------------
 // platformlar: [x, y, genislik, "tip"]   tip: normal | kayip | sahte | yay
-// dikenler:    [x, y, genislik]          yerde duran sabit dikenler
+// dikenler:    [x, y, genislik, yukseklik?]  sabit dikenler. yukseklik verilmezse ekranın
+//              dibine kadar iner (yerdeki dikenler). YUKARIDAKİ bir platformun üstüne diken
+//              koyacaksan yukseklik ver (ZEMIN_KALIN gibi), yoksa dev bir sütun çizilir.
 // tavanDiken:  [x, genislik, tetikX0, tetikX1]   sen o aralığa girince iner ve yere saplanıp KALIR
 //              (metal başlığının üstüne zıplayıp karşıya geçebilirsin)
 // kapananDuvar:[x, genislik, tetikX0, tetikX1, "yon"]  yon: asagi (tavandan iner) | yukari (yerden çıkar)
@@ -406,14 +408,18 @@ var BOLUMLER = [
     platformlar: [
       [0, 540, 170, "normal"],
       [175, 545, 110, "yay"],
-      [330, 340, 150, "normal"],
+      [330, 340, 190, "normal"],
       [530, 340, 110, "hareketli", 530, 530, 340, 200, 1.6],
       [600, 200, 200, "normal"]
     ],
-    dikenler: [[170, 578, 420]],
-    testereler: [[345, 415, 328, 328, 2.6]],
+    // Ortadaki testere SABİT (gidip gelirken geçilmesi çok zordu) — üstünden zıplanır.
+    // Platform 150 → 190 uzatıldı: yaydan inince koşu mesafesi, testereden sonra da
+    // asansörü bekleyecek yer kalsın. Karşılığında yukarı tek bir diken kondu.
+    dikenler: [[170, 578, 420], [660, 200, 22, 22]],
+    testereler: [[425, 425, 328, 328, 0]],
     sahteKapi: [[610, 118]],
-    gorunmezDuvar: [[690, 100, 24, 100]],
+    // görünmez duvar sağa kaydırıldı: dikenle arasında inilecek yer kalsın
+    gorunmezDuvar: [[716, 100, 24, 100]],
     roketler: [[820, 150, -1, 620, 780]],
     kapi: [740, 118, false],
     mesaj: "Son şeytan. Hiçbir şeye güvenme."
@@ -561,7 +567,9 @@ function bolumuKur(no) {
     platformlar: (k.platformlar || []).map(function (p) {
       return { x: p[0], y: p[1], g: p[2], tip: p[3], sayac: 0, gitti: false, yaySikis: 0 };
     }),
-    dikenler: (k.dikenler || []).map(function (d) { return { x: d[0], y: d[1], g: d[2] }; }),
+    dikenler: (k.dikenler || []).map(function (d) {
+      return { x: d[0], y: d[1], g: d[2], h: d[3] !== undefined ? d[3] : Y - d[1] };
+    }),
     tavanDiken: (k.tavanDiken || []).map(function (d) {
       return { x: d[0], g: d[1], t0: d[2], t1: d[3], y: -70, hal: "hazir", bek: 0 };
     }),
@@ -1075,7 +1083,7 @@ function dikenSirasiCiz(x, y, genislik, yukari) {
 function dikenleriCiz() {
   bolum.dikenler.forEach(function (d) {
     cx.fillStyle = "#2a1b3f";
-    cx.fillRect(d.x, d.y, d.g, Y - d.y);
+    cx.fillRect(d.x, d.y, d.g, d.h);
     dikenSirasiCiz(d.x, d.y, d.g, true);
   });
 
