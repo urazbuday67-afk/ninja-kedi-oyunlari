@@ -78,7 +78,7 @@
     </svg>
   </button>
 </div>
-<p id="ipucu">&larr; &rarr; y&uuml;r&uuml; &nbsp;·&nbsp; BOŞLUK / &uarr; z&#305;pla &nbsp;·&nbsp; R b&ouml;l&uuml;m&uuml; ba&#351;tan al &nbsp;·&nbsp; F tam ekran</p>
+<p id="ipucu">&larr; &rarr; y&uuml;r&uuml; &nbsp;·&nbsp; BOŞLUK / &uarr; z&#305;pla &nbsp;·&nbsp; R b&ouml;l&uuml;m&uuml; ba&#351;tan al &nbsp;·&nbsp; M ses a&ccedil;/kapa &nbsp;·&nbsp; F tam ekran</p>
 
 <div id="cevir" aria-hidden="true">
   <div class="tel">📱</div>
@@ -114,10 +114,89 @@ var SONSUZ_CAN     = true;   // Level Devil ruhu: ölüm bedava, sadece sayılı
 var G = 800, Y = 600;        // dünya hep 800x600 (ekran motoru bunu ölçekler)
 var ZEMIN_KALIN = 22;        // platform kalınlığı
 
+// ------------------- SES -------------------
+// Ses dosyası YOK — bütün sesler tarayıcıda kodla üretiliyor (Web Audio).
+// Tarayıcılar izin vermeden ses çalmaz: ilk tuşa/dokunuşa kadar motor uyumaz.
+var sesMotoru = null, sesKapali = false;
+
+function sesiUyandir() {
+  if (!sesMotoru) {
+    try { sesMotoru = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+  }
+  if (sesMotoru && sesMotoru.state === "suspended") sesMotoru.resume();
+}
+
+// tek bir nota: frekans, süre, dalga tipi, yükseklik(ses seviyesi), bitiş frekansı, gecikme
+function ton(frk, sure, tip, yuk, bitisFrk, gecikme) {
+  if (!sesMotoru || sesKapali) return;
+  var t = sesMotoru.currentTime + (gecikme || 0);
+  var osc = sesMotoru.createOscillator(), g = sesMotoru.createGain();
+  osc.type = tip || "sine";
+  osc.frequency.setValueAtTime(frk, t);
+  if (bitisFrk) osc.frequency.exponentialRampToValueAtTime(Math.max(20, bitisFrk), t + sure);
+  g.gain.setValueAtTime(yuk || 0.15, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + sure);
+  osc.connect(g); g.connect(sesMotoru.destination);
+  osc.start(t); osc.stop(t + sure);
+}
+
+// hışırtı/gürültü — çarpma, toz, patlama sesleri için
+function gurultu(sure, yuk, kesim, gecikme) {
+  if (!sesMotoru || sesKapali) return;
+  var t = sesMotoru.currentTime + (gecikme || 0);
+  var adet = Math.floor(sesMotoru.sampleRate * sure);
+  var tampon = sesMotoru.createBuffer(1, adet, sesMotoru.sampleRate);
+  var veri = tampon.getChannelData(0);
+  for (var i = 0; i < adet; i++) veri[i] = (Math.random() * 2 - 1) * (1 - i / adet);
+  var kaynak = sesMotoru.createBufferSource(); kaynak.buffer = tampon;
+  var filtre = sesMotoru.createBiquadFilter();
+  filtre.type = "lowpass"; filtre.frequency.value = kesim || 900;
+  var g = sesMotoru.createGain();
+  g.gain.setValueAtTime(yuk || 0.18, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + sure);
+  kaynak.connect(filtre); filtre.connect(g); g.connect(sesMotoru.destination);
+  kaynak.start(t); kaynak.stop(t + sure);
+}
+
+function sesZipla()        { ton(380, 0.14, "square", 0.11, 700); }
+function sesKon()          { ton(150, 0.07, "sine", 0.09, 90); gurultu(0.06, 0.05, 700); }
+function sesOlum()         { ton(330, 0.10, "square", 0.16, 90); ton(180, 0.34, "sawtooth", 0.14, 45, 0.06); gurultu(0.30, 0.15, 500, 0.02); }
+function sesKapiGec()      { var n = [523, 659, 784, 1047]; for (var i = 0; i < n.length; i++) ton(n[i], 0.20, "triangle", 0.14, null, i * 0.08); }
+function sesKazandiSes()   { var n = [523, 659, 784, 1047, 1319]; for (var i = 0; i < n.length; i++) ton(n[i], 0.30, "triangle", 0.15, null, i * 0.13); }
+function sesBasla()        { ton(392, 0.14, "triangle", 0.14); ton(587, 0.22, "triangle", 0.14, null, 0.10); }
+function sesDikenIniyor()  { ton(880, 0.32, "sawtooth", 0.09, 150); }   // zincir boşalıyor
+function sesDikenCarpti()  { ton(90, 0.22, "square", 0.18, 40); gurultu(0.22, 0.20, 420); }
+function sesDuvar()        { ton(120, 0.30, "square", 0.15, 60); gurultu(0.26, 0.13, 380, 0.02); }
+function sesTavanCokuyor() { ton(70, 0.70, "sawtooth", 0.14, 34); }
+function sesYay()          { ton(220, 0.22, "square", 0.13, 900); }
+function sesZeminCatirdi() { gurultu(0.16, 0.10, 1500); ton(420, 0.10, "triangle", 0.06, 260); }
+function sesZeminGitti()   { gurultu(0.30, 0.16, 600); }
+function sesRoket()        { ton(180, 0.55, "sawtooth", 0.10, 520); gurultu(0.55, 0.09, 1300); }
+function sesBonk()         { ton(300, 0.12, "square", 0.13, 120); }     // görünmez duvara toslama
+function sesGulme()        { ton(500, 0.10, "square", 0.12, 340); ton(430, 0.10, "square", 0.12, 300, 0.11); ton(360, 0.15, "square", 0.11, 240, 0.22); }
+function sesKapiKacti()    { ton(700, 0.13, "square", 0.11, 1200); ton(900, 0.12, "square", 0.09, 1500, 0.10); }
+
+// Testere sesi sürekli çalar; yaklaştıkça yükselir (karanlık bölümde hayat kurtarır)
+var testereSes = null;
+function testereSesiAyarla(seviye) {
+  if (!sesMotoru) return;
+  if (!testereSes) {
+    var o = sesMotoru.createOscillator(); o.type = "sawtooth"; o.frequency.value = 92;
+    var f = sesMotoru.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1500; f.Q.value = 1.1;
+    var g = sesMotoru.createGain(); g.gain.value = 0;
+    o.connect(f); f.connect(g); g.connect(sesMotoru.destination);
+    try { o.start(); } catch (e) {}
+    testereSes = { o: o, g: g };
+  }
+  var hedef = sesKapali ? 0 : seviye;
+  try { testereSes.g.gain.setTargetAtTime(hedef, sesMotoru.currentTime, 0.05); } catch (e) { testereSes.g.gain.value = hedef; }
+}
+
 // ------------------- BÖLÜMLER -------------------
 // platformlar: [x, y, genislik, "tip"]   tip: normal | kayip | sahte | yay
 // dikenler:    [x, y, genislik]          yerde duran sabit dikenler
-// tavanDiken:  [x, genislik, tetikX0, tetikX1]   sen o aralığa girince iner
+// tavanDiken:  [x, genislik, tetikX0, tetikX1]   sen o aralığa girince iner ve yere saplanıp KALIR
+//              (metal başlığının üstüne zıplayıp karşıya geçebilirsin)
 // kapananDuvar:[x, genislik, tetikX0, tetikX1, "yon"]  yon: asagi (tavandan iner) | yukari (yerden çıkar)
 // tersAlan:    [x, y, genislik, yukseklik]   içindeyken yerçekimi ters
 // kapi:        [x, y, kacarMi]
@@ -451,6 +530,7 @@ var oyuncu = {
 
 var basili = {};
 var kayit = kaydiOku();
+sesKapali = !!kayit.sesKapali;   // ses açık mı kapalı mı — hatırlansın
 
 // ------------------- KAYIT -------------------
 function kaydiOku() {
@@ -458,9 +538,10 @@ function kaydiOku() {
     var ham = localStorage.getItem("seytaniBolumKaydi");
     if (ham) return JSON.parse(ham);
   } catch (e) {}
-  return { enIyiBolum: 0, toplamOlum: 0, bitirdi: false };
+  return { enIyiBolum: 0, toplamOlum: 0, bitirdi: false, sesKapali: false };
 }
 function kaydiYaz() {
+  kayit.sesKapali = sesKapali;
   try { localStorage.setItem("seytaniBolumKaydi", JSON.stringify(kayit)); } catch (e) {}
 }
 
@@ -531,6 +612,7 @@ function oyunuBaslat() {
   sayac = 0; kameraX = 0;
   bolumuKur(0);
   durum = "oyun";
+  sesBasla();
 }
 
 // ------------------- ÇARPIŞMA YARDIMCILARI -------------------
@@ -540,9 +622,10 @@ function carpisti(ax, ay, ag, ah, bx, by, bg, bh) {
 
 // ------------------- OYUNCU GÜNCELLE -------------------
 function oyuncuGuncelle() {
-  var sol = basili["ArrowLeft"] || basili["a"] || basili["A"] || dokunSol;
-  var sag = basili["ArrowRight"] || basili["d"] || basili["D"] || dokunSag;
-  var zipla = basili[" "] || basili["ArrowUp"] || basili["w"] || basili["W"] || dokunZipla;
+  // hem tuş harfi hem fiziksel tuş kodu okunuyor (bkz. tusuIsaretle)
+  var sol = basili["ArrowLeft"] || basili["KeyA"] || basili["a"] || dokunSol;
+  var sag = basili["ArrowRight"] || basili["KeyD"] || basili["d"] || dokunSag;
+  var zipla = basili["Space"] || basili[" "] || basili["ArrowUp"] || basili["KeyW"] || basili["w"] || dokunZipla;
 
   // TERS KONTROL bölümünde sol sağ olur (klasik troll)
   if (bolum.tersKontrol) { var gecici = sol; sol = sag; sag = gecici; }
@@ -575,6 +658,7 @@ function oyuncuGuncelle() {
     oyuncu.vy = -ZIPLAMA_GUCU * oyuncu.yercekimiYon;
     oyuncu.yerde = false;
     oyuncu.ziplayabilir = false;
+    sesZipla();
   }
   if (!zipla) oyuncu.ziplayabilir = true;
 
@@ -594,7 +678,7 @@ function oyuncuGuncelle() {
       else if (oyuncu.vx < 0) oyuncu.x = p.x + p.g;
       oyuncu.vx = 0;
       // görünmez duvara tosladın: artık görünüyor
-      if (p.kaynak && p.kaynak.gorundu === false) { p.kaynak.gorundu = true; p.kaynak.parla = 22; titre = 9; }
+      if (p.kaynak && p.kaynak.gorundu === false) { p.kaynak.gorundu = true; p.kaynak.parla = 22; titre = 9; sesBonk(); }
     }
   });
 
@@ -610,10 +694,12 @@ function oyuncuGuncelle() {
     }
     if (oyuncu.vy > 0) {          // aşağı iniyoruz
       oyuncu.y = p.y - oyuncu.h;
+      if (oyuncu.vy > 4) sesKon();
       oyuncu.vy = 0;
       if (oyuncu.yercekimiYon === 1) { oyuncu.yerde = true; zemineBastik(p); }
     } else if (oyuncu.vy < 0) {   // yukarı çıkıyoruz
       oyuncu.y = p.y + p.h;
+      if (oyuncu.vy < -4 && oyuncu.yercekimiYon === -1) sesKon();
       oyuncu.vy = 0;
       if (oyuncu.yercekimiYon === -1) { oyuncu.yerde = true; zemineBastik(p); }
     }
@@ -649,6 +735,11 @@ function katiCisimler() {
     // sadeceDikey: tavanın "yanı" yok — yoksa zıplayınca seni ekranın kenarına fırlatıyordu
     liste.push({ x: 0, y: 0, g: G, h: t.boy, kaynak: t, sadeceDikey: true });
   });
+  bolum.tavanDiken.forEach(function (t) {
+    // Yere saplanmış dikenin metal başlığı basamak olur: üstüne çıkıp karşıya geç!
+    if (t.hal !== "durdu") return;
+    liste.push({ x: t.x, y: t.y - 30, g: t.g, h: 30, kaynak: t });
+  });
   bolum.gorunmezDuvar.forEach(function (d) {
     liste.push({ x: d.x, y: d.y, g: d.g, h: d.h, kaynak: d });
   });
@@ -658,12 +749,16 @@ function katiCisimler() {
 function zemineBastik(p) {
   var kaynak = p.kaynak;
   if (!kaynak || !kaynak.tip) return;
-  if (kaynak.tip === "kayip") kaynak.sayac = Math.max(kaynak.sayac, 1);
-  if (kaynak.tip === "sahte") { kaynak.gitti = true; titre = 8; }
+  if (kaynak.tip === "kayip") {
+    if (kaynak.sayac === 0) sesZeminCatirdi();     // çatırdamaya başladı: kaç!
+    kaynak.sayac = Math.max(kaynak.sayac, 1);
+  }
+  if (kaynak.tip === "sahte") { kaynak.gitti = true; titre = 8; sesZeminGitti(); }
   if (kaynak.tip === "yay") {
     oyuncu.vy = -YAY_GUCU * oyuncu.yercekimiYon;
     oyuncu.yerde = false;
     kaynak.yaySikis = 12;
+    sesYay();
   }
   if (kaynak.tip === "hareketli") oyuncu.tasiyan = kaynak;   // platform seni taşısın
 }
@@ -690,29 +785,33 @@ function tuzaklariGuncelle() {
   bolum.platformlar.forEach(function (p) {
     if (p.tip === "kayip" && p.sayac > 0 && !p.gitti) {
       p.sayac++;
-      if (p.sayac > KAYIP_ZEMIN_SURE) { p.gitti = true; titre = 6; }
+      if (p.sayac > KAYIP_ZEMIN_SURE) { p.gitti = true; titre = 6; sesZeminGitti(); }
     }
     if (p.yaySikis > 0) p.yaySikis--;
   });
 
-  // tavandan inen dikenler — iner, bekler, geri çekilir (yoksa bölüm kilitlenirdi)
+  // Tavandan inen dikenler — iner ve YERE SAPLANIP KALIR.
+  // Eskiden geri çekiliyordu ve çekilirken bıçakları üstünden geçen oyuncuyu
+  // öldürüyordu. Artık aşağıda kalıyor; metal başlığı KATI, yani üstüne
+  // zıplayıp karşıya geçebilirsin (bkz. katiCisimler).
   bolum.tavanDiken.forEach(function (d) {
-    if (d.hal === "hazir" && om > d.t0 && om < d.t1) { d.hal = "iniyor"; titre = 10; }
+    if (d.hal === "hazir" && om > d.t0 && om < d.t1) { d.hal = "iniyor"; titre = 10; sesDikenIniyor(); }
     else if (d.hal === "iniyor") {
       d.y += DIKEN_INME_HIZI;
-      if (d.y >= Y - 60) { d.y = Y - 60; d.hal = "bekliyor"; d.bek = TUZAK_BEKLEME; titre = 6; }
-    } else if (d.hal === "bekliyor") {
-      d.bek--;
-      if (d.bek <= 0) d.hal = "cekiliyor";
-    } else if (d.hal === "cekiliyor") {
-      d.y -= TUZAK_GERI_HIZI;
-      if (d.y <= -70) { d.y = -70; d.hal = "bitti"; }   // tek atışlık: bir daha inmez
+      if (d.y >= Y - 60) {
+        d.y = Y - 60;
+        d.hal = "durdu";
+        titre = 6;
+        sesDikenCarpti();
+        // tam altındaysan başlık seni ezer (bıçaklar zaten yakalamış olur ama garanti olsun)
+        if (carpisti(oyuncu.x, oyuncu.y, oyuncu.g, oyuncu.h, d.x, d.y - 30, d.g, 30)) olduk();
+      }
     }
   });
 
   // kapanan duvarlar — kapanır, bekler, tekrar açılır
   bolum.kapananDuvar.forEach(function (d) {
-    if (d.hal === "hazir" && om > d.t0 && om < d.t1) { d.hal = "kapaniyor"; titre = 12; }
+    if (d.hal === "hazir" && om > d.t0 && om < d.t1) { d.hal = "kapaniyor"; titre = 12; sesDuvar(); }
     else if (d.hal === "kapaniyor") {
       d.boy += KAPI_KAPANMA_HIZI;
       if (d.boy >= Y - 90) { d.boy = Y - 90; d.hal = "bekliyor"; d.bek = TUZAK_BEKLEME; }
@@ -727,7 +826,7 @@ function tuzaklariGuncelle() {
 
   // --- ÇÖKEN TAVAN: tetiklenince yavaşça iner, durY'de durur (ezilirsen ölürsün) ---
   bolum.cokenTavan.forEach(function (t) {
-    if (t.hal === "hazir" && om > t.t0 && om < t.t1) { t.hal = "cokuyor"; titre = 10; }
+    if (t.hal === "hazir" && om > t.t0 && om < t.t1) { t.hal = "cokuyor"; titre = 10; sesTavanCokuyor(); }
     if (t.hal === "cokuyor") {
       t.boy += COKEN_TAVAN_HIZI;
       if (sayac % 8 === 0) titre = 4;
@@ -753,15 +852,20 @@ function tuzaklariGuncelle() {
   });
 
   // --- TESTERELER: rayda gidip gelen dönen testere ---
+  var enYakinTestere = 999999;
   bolum.testereler.forEach(function (t) {
     t.aci += 0.35;
     raydaYuru(t);
+    var fx = (oyuncu.x + oyuncu.g / 2) - t.x, fy = (oyuncu.y + oyuncu.h / 2) - t.y;
+    enYakinTestere = Math.min(enYakinTestere, Math.sqrt(fx * fx + fy * fy));
   });
+  // testere vızıltısı: yaklaştıkça yükselir (karanlık bölümde kulağınla bulursun)
+  testereSesiAyarla(bolum.testereler.length ? Math.max(0, 0.06 * (1 - enYakinTestere / 420)) : 0);
 
   // --- ROKETLER: tetiklenince duvardan fırlar, peşine düşer ---
   bolum.roketler.forEach(function (r) {
     if (r.hal === "hazir" && om > r.t0 && om < r.t1) {
-      r.hal = "ucuyor"; r.x = r.bx; r.y = r.by; r.omur = 260; titre = 8;
+      r.hal = "ucuyor"; r.x = r.bx; r.y = r.by; r.omur = 260; titre = 8; sesRoket();
     }
     if (r.hal === "ucuyor") {
       r.x += ROKET_HIZI * r.yon;
@@ -778,7 +882,7 @@ function tuzaklariGuncelle() {
     if (sk.gulme > 0) sk.gulme--;
     if (sk.gitti) return;
     if (carpisti(oyuncu.x, oyuncu.y, oyuncu.g, oyuncu.h, sk.x + 8, sk.y, sk.g - 16, sk.h)) {
-      sk.gitti = true; sk.gulme = 90; titre = 12;
+      sk.gitti = true; sk.gulme = 90; titre = 12; sesGulme();
       mesajSure = 100;
       bolum.mesaj = "HAHA! Sahte kapıydı!";
     }
@@ -792,6 +896,7 @@ function tuzaklariGuncelle() {
     if (uzaklik < KACAN_KAPI_MESAFE) {
       k.kactiMi++;
       titre = 9;
+      sesKapiKacti();
       if (k.kactiMi === 1) k.x = Math.max(40, k.x - 330);   // birinci kaçış: geriye
       else k.x = Math.min(G - k.g - 20, k.x + 300);          // ikinci: tekrar ileri
       mesajSure = 90;
@@ -809,6 +914,7 @@ function olduk() {
   kayit.toplamOlum = (kayit.toplamOlum || 0) + 1;
   kaydiYaz();
   titre = 14;
+  sesOlum();
   parcalar = [];
   for (var i = 0; i < 22; i++) {
     parcalar.push({
@@ -825,11 +931,12 @@ function olumKontrolu() {
     var d = bolum.dikenler[i];
     if (carpisti(oyuncu.x + 3, oyuncu.y + 4, oyuncu.g - 6, oyuncu.h - 4, d.x, d.y - 14, d.g, 22)) { olduk(); return; }
   }
-  // tavandan inen dikenler (uç kısmı öldürür)
+  // Tavandan inen dikenler: SADECE bıçakları öldürür.
+  // Metal başlık (t.y-30 ile t.y arası) güvenli — orası basılacak yer.
   for (var j = 0; j < bolum.tavanDiken.length; j++) {
     var t = bolum.tavanDiken[j];
     if (t.y < -60) continue;
-    if (carpisti(oyuncu.x + 3, oyuncu.y + 3, oyuncu.g - 6, oyuncu.h - 6, t.x, t.y, t.g, 62)) { olduk(); return; }
+    if (carpisti(oyuncu.x + 3, oyuncu.y + 3, oyuncu.g - 6, oyuncu.h - 6, t.x, t.y + 2, t.g, 24)) { olduk(); return; }
   }
   // testereler
   for (var s = 0; s < bolum.testereler.length; s++) {
@@ -859,7 +966,9 @@ function kapiKontrolu() {
       durum = "kazandi";
       kayit.bitirdi = true;
       kaydiYaz();
+      sesKazandiSes();
     } else {
+      sesKapiGec();
       bolumuKur(bolumNo);
     }
   }
@@ -968,6 +1077,11 @@ function dikenleriCiz() {
     if (t.y < -60) return;
     cx.fillStyle = "#3a2450";
     cx.fillRect(t.x, t.y - 30, t.g, 32);
+    // Yere saplandıysa üstü basılacak yer olur — parlak kenarla belli edelim
+    if (t.hal === "durdu") {
+      cx.fillStyle = "#8f6fc0";
+      cx.fillRect(t.x, t.y - 30, t.g, 6);
+    }
     cx.strokeStyle = "#1c1030"; cx.lineWidth = 2;
     cx.strokeRect(t.x, t.y - 30, t.g, 32);
     dikenSirasiCiz(t.x, t.y + 2, t.g, false);
@@ -1253,6 +1367,43 @@ function arayuzuCiz() {
   }
 }
 
+// Sağ üstteki küçük hoparlör düğmesi (tıkla / dokun ya da M tuşu)
+function sesDugmesiAlani() { return { x: G - 50, y: 42, g: 38, h: 30 }; }
+
+function sesDugmesiniCiz() {
+  var b = sesDugmesiAlani();
+  cx.save();
+  cx.fillStyle = sesKapali ? "rgba(255,80,110,0.16)" : "rgba(255,255,255,0.09)";
+  cx.beginPath();
+  if (cx.roundRect) cx.roundRect(b.x, b.y, b.g, b.h, 9); else cx.rect(b.x, b.y, b.g, b.h);
+  cx.fill();
+  cx.strokeStyle = sesKapali ? "#ff8fa3" : "rgba(255,255,255,0.30)";
+  cx.lineWidth = 1.5; cx.stroke();
+
+  var mx = b.x + 13, my = b.y + b.h / 2;
+  var renk = sesKapali ? "#ff8fa3" : "#ffd84d";
+  cx.fillStyle = renk; cx.strokeStyle = renk; cx.lineWidth = 2; cx.lineCap = "round";
+  cx.beginPath();
+  cx.moveTo(mx - 7, my - 4); cx.lineTo(mx - 3, my - 4); cx.lineTo(mx + 2, my - 9);
+  cx.lineTo(mx + 2, my + 9); cx.lineTo(mx - 3, my + 4); cx.lineTo(mx - 7, my + 4);
+  cx.closePath(); cx.fill();
+  if (sesKapali) {
+    cx.beginPath();
+    cx.moveTo(mx + 8, my - 6); cx.lineTo(mx + 17, my + 6);
+    cx.moveTo(mx + 17, my - 6); cx.lineTo(mx + 8, my + 6);
+    cx.stroke();
+  } else {
+    cx.beginPath(); cx.arc(mx + 3, my, 7, -0.9, 0.9); cx.stroke();
+    cx.beginPath(); cx.arc(mx + 3, my, 12, -0.8, 0.8); cx.stroke();
+  }
+  cx.restore();
+}
+
+function sesDugmesineDokunuldu(p) {
+  var b = sesDugmesiAlani();
+  return p.x > b.x - 10 && p.x < b.x + b.g + 10 && p.y > b.y - 10 && p.y < b.y + b.h + 10;
+}
+
 function menuyuCiz() {
   arkaPlaniCiz();
   cx.textAlign = "center";
@@ -1289,7 +1440,7 @@ function menuyuCiz() {
 
   cx.fillStyle = "rgba(255,255,255,0.45)";
   cx.font = "700 14px Nunito, Arial";
-  cx.fillText("← → yürü   ·   BOŞLUK / ↑ zıpla   ·   R baştan al", G / 2, 552);
+  cx.fillText("← → yürü   ·   BOŞLUK / ↑ zıpla   ·   R baştan al   ·   M ses", G / 2, 552);
   cx.textAlign = "left";
 }
 
@@ -1359,6 +1510,8 @@ function dongu() {
   cx.save();
   if (titre > 0) cx.translate((Math.random() - 0.5) * titre, (Math.random() - 0.5) * titre);
 
+  if (durum !== "oyun") testereSesiAyarla(0);   // menüde/ölünce vızıltı sussun
+
   if (durum === "menu") {
     menuyuCiz();
   } else if (durum === "kazandi") {
@@ -1404,22 +1557,57 @@ function dongu() {
     dugmeleriCiz();
   }
 
+  sesDugmesiniCiz();
+
   cx.restore();
   requestAnimationFrame(dongu);
 }
 
 // ------------------- KONTROLLER -------------------
+// Bir tuşu basılı/bırakılmış olarak işaretler.
+// e.key tek başına GÜVENİLİR DEĞİL: "d" basılıyken Shift'e basarsan bırakma olayı
+// "D" olarak gelir ve "d" sonsuza kadar basılı kalır (ileri tuşu takılırdı).
+// Bu yüzden hem fiziksel tuş kodunu (e.code) hem harfin iki hâlini birden yazıyoruz.
+function tusuIsaretle(e, deger) {
+  if (e.code) basili[e.code] = deger;
+  var k = e.key;
+  if (!k) return;
+  basili[k] = deger;
+  if (k.length === 1) { basili[k.toLowerCase()] = deger; basili[k.toUpperCase()] = deger; }
+}
+
+// Sekme değişince / tam ekrana girip çıkınca tarayıcı "bıraktım" olayını yutabiliyor.
+// O yüzden odak kaybolduğunda bütün tuşları elle bırakıyoruz.
+function tuslariBirak() {
+  basili = {};
+  dokunSol = dokunSag = dokunZipla = false;
+}
+
 document.addEventListener("keydown", function (e) {
-  basili[e.key] = true;
+  if (e.repeat) return;                 // otomatik tekrar bize bir şey katmıyor
+  sesiUyandir();
+  tusuIsaretle(e, true);
   if ([" ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].indexOf(e.key) >= 0) e.preventDefault();
   if (e.key === "r" || e.key === "R") { if (durum === "oyun" || durum === "olum") { bolumuKur(bolumNo); durum = "oyun"; } }
   if (e.key === "f" || e.key === "F") tamEkranDegistir();
+  if (e.key === "m" || e.key === "M") sesiAcKapa();
   if (e.key === "Enter" || e.key === " ") {
-    if (durum === "menu") oyunuBaslat();
-    else if (durum === "kazandi") oyunuBaslat();
+    if (durum === "menu" || durum === "kazandi") oyunuBaslat();
   }
 });
-document.addEventListener("keyup", function (e) { basili[e.key] = false; });
+document.addEventListener("keyup", function (e) { tusuIsaretle(e, false); });
+window.addEventListener("blur", tuslariBirak);
+document.addEventListener("visibilitychange", function () { if (document.hidden) tuslariBirak(); });
+document.addEventListener("fullscreenchange", tuslariBirak);
+document.addEventListener("webkitfullscreenchange", tuslariBirak);
+
+function sesiAcKapa() {
+  sesiUyandir();
+  sesKapali = !sesKapali;
+  kaydiYaz();
+  if (!sesKapali) ton(760, 0.12, "sine", 0.14, 1100);
+  else testereSesiAyarla(0);
+}
 
 // fare / dokunma
 function tuvalKoordinati(olay) {
@@ -1431,7 +1619,9 @@ function tuvalKoordinati(olay) {
 }
 
 tuval.addEventListener("click", function (olay) {
+  sesiUyandir();
   var p = tuvalKoordinati(olay);
+  if (sesDugmesineDokunuldu(p)) { sesiAcKapa(); return; }
   if (durum === "menu" || durum === "kazandi") {
     var by = durum === "menu" ? 450 : 440;
     if (p.x > G / 2 - 110 && p.x < G / 2 + 110 && p.y > by - 12 && p.y < by + 68) oyunuBaslat();
@@ -1453,7 +1643,14 @@ function dokunmalariIsle(olay) {
     }
   }
 }
-tuval.addEventListener("touchstart", function (e) { e.preventDefault(); dokunmalariIsle(e); }, { passive: false });
+tuval.addEventListener("touchstart", function (e) {
+  e.preventDefault();
+  sesiUyandir();                       // ilk dokunuşta sesi uyandır (tarayıcı kuralı)
+  for (var i = 0; i < e.changedTouches.length; i++) {
+    if (sesDugmesineDokunuldu(tuvalKoordinati(e.changedTouches[i]))) { sesiAcKapa(); break; }
+  }
+  dokunmalariIsle(e);
+}, { passive: false });
 tuval.addEventListener("touchmove", function (e) { e.preventDefault(); dokunmalariIsle(e); }, { passive: false });
 tuval.addEventListener("touchend", function (e) { e.preventDefault(); dokunmalariIsle(e); }, { passive: false });
 tuval.addEventListener("touchcancel", function (e) { dokunSol = dokunSag = dokunZipla = false; }, { passive: true });
@@ -1496,7 +1693,7 @@ function tamEkranDegistir() {
   }
   setTimeout(olcuAyarla, 120);
 }
-document.getElementById("tamekranDugme").addEventListener("click", tamEkranDegistir);
+document.getElementById("tamekranDugme").addEventListener("click", function () { sesiUyandir(); tamEkranDegistir(); });
 
 // ------------------- BAŞLAT -------------------
 sayac = 0; kameraX = 0;      // menü çizimi bunları kullanır — tanımsız kalmasın!
