@@ -114,6 +114,13 @@ var SONSUZ_CAN     = true;   // Level Devil ruhu: ölüm bedava, sadece sayılı
 var G = 800, Y = 600;        // dünya hep 800x600 (ekran motoru bunu ölçekler)
 var ZEMIN_KALIN = 22;        // platform kalınlığı
 
+// Telefonda kumanda düğmeleri oyunun İÇİNE değil, YANINDAKİ şeritlere çizilir —
+// yoksa parmaklar tam da karakterin yürüdüğü yeri kapatıyor.
+// Telefon yatayken ekran zaten oyundan daha geniş olduğu için bu şeritler
+// bedavaya geliyor: oyun küçülmüyor, boşa giden siyah alan kullanılıyor.
+var KENAR_GENIS = 150;       // tek bir yan şeridin genişliği
+var KENAR = 0;               // şu anki değer (masaüstünde 0, telefonda KENAR_GENIS)
+
 // ------------------- SES -------------------
 // Ses dosyası YOK — bütün sesler tarayıcıda kodla üretiliyor (Web Audio).
 // Tarayıcılar izin vermeden ses çalmaz: ilk tuşa/dokunuşa kadar motor uyumaz.
@@ -1474,32 +1481,53 @@ function kazandiEkraniCiz() {
 var dokunSol = false, dokunSag = false, dokunZipla = false;
 var dokunmatik = false;
 
+// Düğmelerin yeri TUVAL koordinatında (dünya değil!) — sol şeritte ◀ ▶, sağ şeritte ⤒.
+// Dokunma alanları şeridin tamamını kaplar ki parmağı ekranın kenarına dayayabilesin.
 function dugmeler() {
+  var sagSeritX = KENAR + G;
   return {
-    sol:   { x: 24,  y: Y - 96, g: 76, h: 72, yazi: "◀" },
-    sag:   { x: 116, y: Y - 96, g: 76, h: 72, yazi: "▶" },
-    zipla: { x: G - 116, y: Y - 104, g: 92, h: 84, yazi: "⤒" }
+    sol:   { x: 10,             y: Y - 210, g: KENAR - 20, h: 96, yazi: "◀" },
+    sag:   { x: 10,             y: Y - 104, g: KENAR - 20, h: 96, yazi: "▶" },
+    zipla: { x: sagSeritX + 10, y: Y - 210, g: KENAR - 20, h: 202, yazi: "⤒" }
   };
 }
 
-function dugmeleriCiz() {
-  if (!dokunmatik) return;
+// Yan şeritleri ve düğmeleri çiz. Dünya çizimi bittikten SONRA çağrılır,
+// çünkü bunlar dünya koordinatında değil, tuvalin kendi koordinatında.
+function kumandayiCiz() {
+  if (!KENAR) return;
+  cx.save();
+  cx.fillStyle = "#0b0716";
+  cx.fillRect(0, 0, KENAR, Y);
+  cx.fillRect(KENAR + G, 0, KENAR, Y);
+
   var d = dugmeler();
   [["sol", dokunSol], ["sag", dokunSag], ["zipla", dokunZipla]].forEach(function (par) {
     var b = d[par[0]], basik = par[1];
-    cx.globalAlpha = basik ? 0.55 : 0.28;
+    cx.globalAlpha = basik ? 0.5 : 0.22;
     cx.fillStyle = "#fff";
     cx.beginPath();
-    cx.roundRect ? cx.roundRect(b.x, b.y, b.g, b.h, 16) : cx.rect(b.x, b.y, b.g, b.h);
+    if (cx.roundRect) cx.roundRect(b.x, b.y, b.g, b.h, 20); else cx.rect(b.x, b.y, b.g, b.h);
     cx.fill();
-    cx.globalAlpha = basik ? 1 : 0.8;
+    cx.globalAlpha = basik ? 1 : 0.75;
     cx.fillStyle = "#1a1030";
-    cx.font = "700 30px Nunito, Arial";
+    cx.font = "700 38px Nunito, Arial";
     cx.textAlign = "center";
-    cx.fillText(b.yazi, b.x + b.g / 2, b.y + b.h / 2 + 11);
+    cx.fillText(b.yazi, b.x + b.g / 2, b.y + b.h / 2 + 14);
     cx.textAlign = "left";
     cx.globalAlpha = 1;
   });
+  cx.restore();
+}
+
+// Dokunmatik anlaşıldığında tuvali yan şeritleri sığdıracak kadar genişlet.
+function kumandaAlaniniAyarla() {
+  var yeni = dokunmatik ? KENAR_GENIS : 0;
+  if (yeni === KENAR && tuval.width === G + 2 * yeni) return;
+  KENAR = yeni;
+  tuval.width = G + 2 * KENAR;
+  tuval.height = Y;
+  olcuAyarla();
 }
 
 // ------------------- ANA DÖNGÜ -------------------
@@ -1508,6 +1536,7 @@ function dongu() {
   if (titre > 0) titre--;
 
   cx.save();
+  cx.translate(KENAR, 0);                      // dünya, sol şeridin sağından başlar
   if (titre > 0) cx.translate((Math.random() - 0.5) * titre, (Math.random() - 0.5) * titre);
 
   if (durum !== "oyun") testereSesiAyarla(0);   // menüde/ölünce vızıltı sussun
@@ -1554,12 +1583,12 @@ function dongu() {
 
     karanligiCiz();
     arayuzuCiz();
-    dugmeleriCiz();
   }
 
   sesDugmesiniCiz();
 
   cx.restore();
+  kumandayiCiz();              // yan şeritler dünyanın DIŞINDA, sarsıntıdan etkilenmez
   requestAnimationFrame(dongu);
 }
 
@@ -1610,36 +1639,47 @@ function sesiAcKapa() {
 }
 
 // fare / dokunma
+// Tuval koordinatı: yan şeritler dahil, sol kenardan itibaren
 function tuvalKoordinati(olay) {
   var kutu = tuval.getBoundingClientRect();
   return {
-    x: (olay.clientX - kutu.left) * (G / kutu.width),
-    y: (olay.clientY - kutu.top) * (Y / kutu.height)
+    x: (olay.clientX - kutu.left) * (tuval.width / kutu.width),
+    y: (olay.clientY - kutu.top) * (tuval.height / kutu.height)
   };
+}
+// Dünya koordinatı: oyunun kendi 800x600'ü (menü düğmesi, ses düğmesi vs. bunu kullanır)
+function dunyaKoordinati(olay) {
+  var p = tuvalKoordinati(olay);
+  return { x: p.x - KENAR, y: p.y };
+}
+
+// "BAŞLA" düğmesine basıldı mı (dünya koordinatı)
+function baslaDugmesineBasildi(d) {
+  if (durum !== "menu" && durum !== "kazandi") return false;
+  var by = durum === "menu" ? 450 : 440;
+  return d.x > G / 2 - 110 && d.x < G / 2 + 110 && d.y > by - 12 && d.y < by + 68;
 }
 
 tuval.addEventListener("click", function (olay) {
   sesiUyandir();
-  var p = tuvalKoordinati(olay);
-  if (sesDugmesineDokunuldu(p)) { sesiAcKapa(); return; }
-  if (durum === "menu" || durum === "kazandi") {
-    var by = durum === "menu" ? 450 : 440;
-    if (p.x > G / 2 - 110 && p.x < G / 2 + 110 && p.y > by - 12 && p.y < by + 68) oyunuBaslat();
-  }
+  var d = dunyaKoordinati(olay);
+  if (sesDugmesineDokunuldu(d)) { sesiAcKapa(); return; }
+  if (baslaDugmesineBasildi(d)) oyunuBaslat();
 });
 
 function dokunmalariIsle(olay) {
-  dokunmatik = true;
+  if (!dokunmatik) { dokunmatik = true; kumandaAlaniniAyarla(); }
   dokunSol = dokunSag = dokunZipla = false;
   var d = dugmeler();
   for (var i = 0; i < olay.touches.length; i++) {
-    var p = tuvalKoordinati(olay.touches[i]);
-    if (p.x > d.sol.x - 12 && p.x < d.sol.x + d.sol.g + 12 && p.y > d.sol.y - 12) dokunSol = true;
-    else if (p.x > d.sag.x - 12 && p.x < d.sag.x + d.sag.g + 12 && p.y > d.sag.y - 12) dokunSag = true;
-    else if (p.x > d.zipla.x - 14 && p.x < d.zipla.x + d.zipla.g + 14 && p.y > d.zipla.y - 14) dokunZipla = true;
-    else if (durum === "menu" || durum === "kazandi") {
-      var by = durum === "menu" ? 450 : 440;
-      if (p.x > G / 2 - 110 && p.x < G / 2 + 110 && p.y > by - 12 && p.y < by + 68) oyunuBaslat();
+    var p = tuvalKoordinati(olay.touches[i]);          // düğmeler tuval koordinatında
+    if (p.x < KENAR) {                                  // sol şerit: üstü ◀, altı ▶
+      if (p.y >= d.sol.y - 20 && p.y < d.sag.y - 6) dokunSol = true;
+      else if (p.y >= d.sag.y - 6) dokunSag = true;
+    } else if (p.x > KENAR + G) {                       // sağ şeridin tamamı zıplama
+      if (p.y >= d.zipla.y - 20) dokunZipla = true;
+    } else if (baslaDugmesineBasildi({ x: p.x - KENAR, y: p.y })) {
+      oyunuBaslat();
     }
   }
 }
@@ -1647,7 +1687,7 @@ tuval.addEventListener("touchstart", function (e) {
   e.preventDefault();
   sesiUyandir();                       // ilk dokunuşta sesi uyandır (tarayıcı kuralı)
   for (var i = 0; i < e.changedTouches.length; i++) {
-    if (sesDugmesineDokunuldu(tuvalKoordinati(e.changedTouches[i]))) { sesiAcKapa(); break; }
+    if (sesDugmesineDokunuldu(dunyaKoordinati(e.changedTouches[i]))) { sesiAcKapa(); break; }
   }
   dokunmalariIsle(e);
 }, { passive: false });
@@ -1666,10 +1706,12 @@ function olcuAyarla() {
   // ipucu satırı telefonda gizli — sadece görünüyorsa ona yer ayır
   var ipucu = document.getElementById("ipucu");
   if (!tamEkranda && ipucu && ipucu.offsetParent !== null) gBoy -= 40;
-  var olcek = Math.min(gEn / G, gBoy / Y);
-  if (!tamEkranda) olcek = Math.min(olcek, 1);       // masaüstünde 800x600'ü aşma
-  tuval.style.width = Math.round(G * olcek) + "px";
-  tuval.style.height = Math.round(Y * olcek) + "px";
+  // Tuval yan şeritlerle birlikte büyümüş olabilir; ölçek onun gerçek boyutuna göre
+  var tG = tuval.width, tY = tuval.height;
+  var olcek = Math.min(gEn / tG, gBoy / tY);
+  if (!tamEkranda) olcek = Math.min(olcek, 1);       // masaüstünde 1:1'i aşma
+  tuval.style.width = Math.round(tG * olcek) + "px";
+  tuval.style.height = Math.round(tY * olcek) + "px";
 }
 window.addEventListener("resize", olcuAyarla);
 window.addEventListener("orientationchange", olcuAyarla);
@@ -1693,11 +1735,19 @@ function tamEkranDegistir() {
   }
   setTimeout(olcuAyarla, 120);
 }
-document.getElementById("tamekranDugme").addEventListener("click", function () { sesiUyandir(); tamEkranDegistir(); });
+// iPhone'da tam ekran diye bir şey YOK (Fullscreen API sadece videoda çalışıyor).
+// Çalışmayacaksa düğmeyi hiç gösterme — bozuk gibi durmasın.
+var tamekranDugme = document.getElementById("tamekranDugme");
+if (sahne.requestFullscreen || sahne.webkitRequestFullscreen) {
+  tamekranDugme.addEventListener("click", function () { sesiUyandir(); tamEkranDegistir(); });
+} else {
+  tamekranDugme.style.display = "none";
+}
 
 // ------------------- BAŞLAT -------------------
 sayac = 0; kameraX = 0;      // menü çizimi bunları kullanır — tanımsız kalmasın!
 bolumuKur(0);
+kumandaAlaniniAyarla();      // dokunmatikse tuvali yan şeritlerle birlikte kur
 olcuAyarla();
 dongu();
 

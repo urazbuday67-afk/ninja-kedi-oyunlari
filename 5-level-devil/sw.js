@@ -2,7 +2,7 @@
 // Oyun dosyası her zaman ÖNCE internetten alınır (network-first);
 // güncelleme yayınlayınca oyuncular anında yeni sürümü görür.
 // Oyunu her yayınladığında SURUM numarasını bir artır.
-var SURUM = "v3";
+var SURUM = "v4";
 var ONBELLEK = "seytani-" + SURUM;
 
 var TEMEL_DOSYALAR = [
