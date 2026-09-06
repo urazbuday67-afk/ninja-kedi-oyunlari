@@ -16,3 +16,7 @@ $RECYCLE.BIN/
 
 # İşletim sistemi
 .DS_Store
+
+# Kisisel fotograflar (kapak gorselleri) depoya girmesin
+yayin/kapak-*.jpg
+yayin/kapak-*.png
