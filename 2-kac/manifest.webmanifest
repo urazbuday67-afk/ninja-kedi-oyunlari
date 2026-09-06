@@ -3,7 +3,7 @@
   "short_name": "Meteor Kedi",
   "description": "Dokuz kuyruklu ninja kedi ile her yönden gelen meteorlardan kaç, çakra küresi topla, boss'ları yen!",
   "id": "./",
-  "start_url": "./",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "fullscreen",
   "display_override": ["fullscreen", "standalone"],

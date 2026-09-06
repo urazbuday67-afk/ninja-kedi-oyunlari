@@ -3,7 +3,7 @@
   "short_name": "Şeytani",
   "description": "Troll platform oyunu: kaybolan zeminler, tavandan inen dikenler, suratına kapanan kapılar ve ters yerçekimi. Bölüm sana tuzak kuruyor!",
   "id": "./",
-  "start_url": "./",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "fullscreen",
   "display_override": ["fullscreen", "standalone"],

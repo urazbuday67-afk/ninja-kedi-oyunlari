@@ -3,7 +3,7 @@
   "short_name": "Orangutan",
   "description": "Orman platform macerası! Yılanları, arıları ve maymunları muz fırlatarak, uzun kolunla savurarak ve kalkanla savuşturarak yen — sonunda Kral Goril seni bekliyor.",
   "id": "./",
-  "start_url": "./",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "fullscreen",
   "display_override": ["fullscreen", "standalone"],

@@ -3,7 +3,7 @@
   "short_name": "Zıpla Kedi",
   "description": "Yerçekimi + zıplama platform oyunu! Sahte bloklar, dikenler, düşen tavan ve daha fazla troll tuzak — bayrağa ulaş!",
   "id": "./",
-  "start_url": "./",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "fullscreen",
   "display_override": ["fullscreen", "standalone"],

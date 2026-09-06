@@ -2,11 +2,10 @@
 // Oyun dosyası her zaman ÖNCE internetten alınır (network-first);
 // güncelleme yayınlayınca oyuncular anında yeni sürümü görür.
 // Oyunu her yayınladığında SURUM numarasını bir artır.
-var SURUM = "v2";
+var SURUM = "v3";
 var ONBELLEK = "zipla-kedi-" + SURUM;
 
 var TEMEL_DOSYALAR = [
-  "./",
   "./index.html",
   "./manifest.webmanifest",
   "./simgeler/simge-192.png",
